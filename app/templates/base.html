@@ -22,10 +22,10 @@
     <div class="collapse navbar-collapse" id="navmenu">
       <div class="navbar-nav me-auto">
         <a class="nav-link {{ 'active' if ep=='main.dashboard' }}" href="{{ url_for('main.dashboard') }}">Tổng quan</a>
-        <a class="nav-link {{ 'active' if ep=='main.trades' }}" href="{{ url_for('main.trades') }}">Lệnh</a>
+        <a class="nav-link {{ 'active' if ep in ['main.transactions','main.tx_add','main.tx_edit'] }}" href="{{ url_for('main.transactions') }}">Giao dịch</a>
+        <a class="nav-link {{ 'active' if ep in ['main.positions','main.position_detail'] }}" href="{{ url_for('main.positions') }}">Vị thế</a>
         <a class="nav-link {{ 'active' if ep=='main.report' }}" href="{{ url_for('main.report') }}">Báo cáo</a>
         <a class="nav-link {{ 'active' if ep=='main.signals' }}" href="{{ url_for('main.signals') }}">Tín hiệu</a>
-        <a class="nav-link {{ 'active' if ep=='main.suggest' }}" href="{{ url_for('main.suggest') }}">Gợi ý</a>
       </div>
       <a class="nav-link" href="{{ url_for('auth.logout') }}">Đăng xuất</a>
     </div>
@@ -44,10 +44,10 @@
 <!-- Thanh điều hướng đáy cho mobile (bấm 1 tay) -->
 <nav class="bottom-nav d-lg-none">
   <a href="{{ url_for('main.dashboard') }}" class="{{ 'active' if ep=='main.dashboard' }}"><span>📊</span>Tổng quan</a>
-  <a href="{{ url_for('main.trades') }}" class="{{ 'active' if ep=='main.trades' }}"><span>📋</span>Lệnh</a>
-  <a href="{{ url_for('main.trade_add') }}" class="{{ 'active' if ep=='main.trade_add' }}"><span>➕</span>Thêm</a>
+  <a href="{{ url_for('main.transactions') }}" class="{{ 'active' if ep in ['main.transactions','main.tx_edit'] }}"><span>📋</span>Giao dịch</a>
+  <a href="{{ url_for('main.tx_add') }}" class="{{ 'active' if ep=='main.tx_add' }}"><span>➕</span>Thêm</a>
+  <a href="{{ url_for('main.positions') }}" class="{{ 'active' if ep in ['main.positions','main.position_detail'] }}"><span>📦</span>Vị thế</a>
   <a href="{{ url_for('main.report') }}" class="{{ 'active' if ep=='main.report' }}"><span>📈</span>Báo cáo</a>
-  <a href="{{ url_for('main.suggest') }}" class="{{ 'active' if ep=='main.suggest' }}"><span>💡</span>Gợi ý</a>
 </nav>
 {% endif %}
 

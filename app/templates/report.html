@@ -2,29 +2,23 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h4 class="mb-0">Báo cáo &amp; Thống kê</h4>
+  <span class="text-muted small">Tính trên vị thế đã đóng</span>
 </div>
 
 <!-- Bộ lọc -->
 <form class="row g-2 mb-3">
-  <div class="col-6 col-md-2"><label>Từ ngày</label>
+  <div class="col-6 col-md-3"><label>Đóng từ ngày</label>
     <input type="date" class="form-control" name="tu_ngay" value="{{ tu_ngay }}"></div>
-  <div class="col-6 col-md-2"><label>Đến ngày</label>
+  <div class="col-6 col-md-3"><label>Đến ngày</label>
     <input type="date" class="form-control" name="den_ngay" value="{{ den_ngay }}"></div>
-  <div class="col-6 col-md-2"><label>Thị trường</label>
-    <select name="thi_truong" class="form-select">
-      <option value="">Tất cả</option>
-      {% for m in markets %}<option {{ 'selected' if f_market==m }}>{{ m }}</option>{% endfor %}
-    </select></div>
-  <div class="col-6 col-md-2"><label>Cặp/Mã</label>
-    <input class="form-control" name="symbol" value="{{ f_symbol }}"></div>
-  <div class="col-6 col-md-2"><label>Chiến lược</label>
-    <input class="form-control" name="chien_luoc" value="{{ f_strat }}"></div>
-  <div class="col-6 col-md-2 d-grid align-self-end"><button class="btn btn-outline-info">Lọc</button></div>
+  <div class="col-6 col-md-3"><label>Mã CP</label>
+    <input class="form-control" name="ma_cp" value="{{ f_ma }}"></div>
+  <div class="col-6 col-md-3 d-grid align-self-end"><button class="btn btn-outline-info">Lọc</button></div>
 </form>
 
 <!-- Cấu hình vốn -->
 <form method="post" class="row g-2 mb-4 align-items-end">
-  {% for k,v in {'tu_ngay':tu_ngay,'den_ngay':den_ngay,'thi_truong':f_market,'symbol':f_symbol,'chien_luoc':f_strat}.items() %}
+  {% for k,v in {'tu_ngay':tu_ngay,'den_ngay':den_ngay,'ma_cp':f_ma}.items() %}
     {% if v %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endif %}
   {% endfor %}
   <div class="col-8 col-md-4"><label>Vốn tài khoản (để tính ROI)</label>
@@ -34,65 +28,48 @@
 
 <!-- Thẻ chỉ số -->
 <div class="stat-grid mb-3">
-  <div class="card"><div class="stat-label">Số lệnh</div><div class="stat">{{ total }}</div></div>
+  <div class="card"><div class="stat-label">Số vị thế</div><div class="stat">{{ total }}</div></div>
   <div class="card"><div class="stat-label">Thắng / Thua / BE</div>
     <div class="stat"><span class="win">{{ wins }}</span> / <span class="loss">{{ losses }}</span> / {{ be }}</div></div>
   <div class="card"><div class="stat-label">Win-rate</div><div class="stat">{{ win_rate }}%</div></div>
   <div class="card"><div class="stat-label">Tổng P/L</div>
-    <div class="stat {{ 'win' if total_pnl>=0 else 'loss' }}">{{ total_pnl }}</div></div>
+    <div class="stat {{ 'win' if total_pnl>=0 else 'loss' }}">{{ total_pnl|fmt }}</div></div>
 
-  <div class="card"><div class="stat-label">%ROI</div>
+  <div class="card"><div class="stat-label">%ROI (theo vốn)</div>
     <div class="stat {{ 'win' if (roi or 0)>=0 else 'loss' }}">{{ roi if roi is not none else '— (đặt vốn)' }}{{ '%' if roi is not none else '' }}</div></div>
-  <div class="card"><div class="stat-label">Avg win</div><div class="stat win">{{ avg_win }}</div></div>
-  <div class="card"><div class="stat-label">Avg loss</div><div class="stat loss">{{ avg_loss }}</div></div>
-  <div class="card"><div class="stat-label">RR thực tế</div><div class="stat">{{ rr_actual if rr_actual is not none else '—' }}</div></div>
+  <div class="card"><div class="stat-label">Avg win</div><div class="stat win">{{ avg_win|fmt }}</div></div>
+  <div class="card"><div class="stat-label">Avg loss</div><div class="stat loss">{{ avg_loss|fmt }}</div></div>
+  <div class="card"><div class="stat-label">Tỉ lệ RR (|win|/|loss|)</div><div class="stat">{{ rr_actual if rr_actual is not none else '—' }}</div></div>
 
-  <div class="card"><div class="stat-label">RR theo kế hoạch (TB)</div><div class="stat">{{ rr_plan if rr_plan is not none else '—' }}</div></div>
   <div class="card"><div class="stat-label">Profit factor</div><div class="stat">{{ profit_factor if profit_factor is not none else '—' }}</div></div>
   <div class="card"><div class="stat-label">Chuỗi thắng dài nhất</div><div class="stat win">{{ max_win_streak }}</div></div>
   <div class="card"><div class="stat-label">Chuỗi thua dài nhất</div><div class="stat loss">{{ max_loss_streak }}</div></div>
-
-  <div class="card"><div class="stat-label">Kỳ vọng / lệnh</div>
-    <div class="stat {{ 'win' if expectancy>=0 else 'loss' }}">{{ expectancy }}</div></div>
+  <div class="card"><div class="stat-label">Kỳ vọng / vị thế</div>
+    <div class="stat {{ 'win' if expectancy>=0 else 'loss' }}">{{ expectancy|fmt }}</div></div>
 </div>
 
 <!-- Biểu đồ -->
 <div class="row g-3 mb-3">
   <div class="col-12 col-lg-7"><div class="card p-3">
-    <b>Đường equity / ROI lũy kế</b><canvas id="cEquity" height="140"></canvas></div></div>
+    <b>P/L &amp; ROI lũy kế (theo ngày đóng)</b><canvas id="cEquity" height="140"></canvas></div></div>
   <div class="col-12 col-lg-5"><div class="card p-3">
-    <b>P/L theo cặp/mã</b><canvas id="cPair" height="160"></canvas></div></div>
-  <div class="col-12"><div class="card p-3">
-    <b>P/L theo chiến lược</b><canvas id="cStrat" height="120"></canvas></div></div>
+    <b>P/L theo mã</b><canvas id="cPair" height="160"></canvas></div></div>
 </div>
 
-<!-- Xếp hạng -->
-<div class="row g-3">
-  <div class="col-12 col-lg-6"><div class="card p-3">
-    <b>Xếp hạng cặp/mã</b>
-    <div class="table-responsive mt-2"><table class="table table-sm table-dark-soft mb-0">
-      <thead><tr><th>Cặp</th><th>Lệnh</th><th>Win-rate</th><th>P/L</th></tr></thead>
-      <tbody>
-        {% for x in by_pair %}
-        <tr><td>{{ x.ten }}</td><td>{{ x.n }}</td><td>{{ x.wr }}%</td>
-          <td class="{{ 'win' if x.pnl>=0 else 'loss' }}">{{ x.pnl }}</td></tr>
-        {% endfor %}
-        {% if not by_pair %}<tr><td colspan="4" class="text-center text-muted">Không có dữ liệu</td></tr>{% endif %}
-      </tbody>
-    </table></div></div></div>
-
-  <div class="col-12 col-lg-6"><div class="card p-3">
-    <b>Xếp hạng chiến lược</b>
-    <div class="table-responsive mt-2"><table class="table table-sm table-dark-soft mb-0">
-      <thead><tr><th>Chiến lược</th><th>Lệnh</th><th>Win-rate</th><th>P/L</th></tr></thead>
-      <tbody>
-        {% for x in by_strat %}
-        <tr><td>{{ x.ten }}</td><td>{{ x.n }}</td><td>{{ x.wr }}%</td>
-          <td class="{{ 'win' if x.pnl>=0 else 'loss' }}">{{ x.pnl }}</td></tr>
-        {% endfor %}
-        {% if not by_strat %}<tr><td colspan="4" class="text-center text-muted">Không có dữ liệu</td></tr>{% endif %}
-      </tbody>
-    </table></div></div></div>
+<!-- Xếp hạng mã -->
+<div class="card p-3">
+  <b>Xếp hạng theo mã</b>
+  <div class="table-responsive mt-2"><table class="table table-sm table-dark-soft mb-0">
+    <thead><tr><th>Mã</th><th class="text-end">Vị thế</th><th class="text-end">Win-rate</th><th class="text-end">P/L</th></tr></thead>
+    <tbody>
+      {% for x in by_pair %}
+      <tr><td class="fw-semibold">{{ x.ten }}</td><td class="text-end">{{ x.n }}</td>
+        <td class="text-end">{{ x.wr }}%</td>
+        <td class="text-end {{ 'win' if x.pnl>=0 else 'loss' }}">{{ x.pnl|fmt }}</td></tr>
+      {% endfor %}
+      {% if not by_pair %}<tr><td colspan="4" class="text-center text-muted">Không có dữ liệu</td></tr>{% endif %}
+    </tbody>
+  </table></div>
 </div>
 {% endblock %}
 
@@ -123,14 +100,6 @@ new Chart(document.getElementById('cPair'), {
     datasets:[{ label:'P/L', data: {{ by_pair|map(attribute='pnl')|list|tojson }},
       backgroundColor: {{ by_pair|map(attribute='pnl')|list|tojson }}.map(v=>v>=0?'#22c55e':'#ef4444') }] },
   options:{ plugins:{ legend:{ display:false } }, scales:{ x:AX, y:AX } }
-});
-
-new Chart(document.getElementById('cStrat'), {
-  type:'bar',
-  data:{ labels: {{ by_strat|map(attribute='ten')|list|tojson }},
-    datasets:[{ label:'P/L', data: {{ by_strat|map(attribute='pnl')|list|tojson }},
-      backgroundColor: {{ by_strat|map(attribute='pnl')|list|tojson }}.map(v=>v>=0?'#22c55e':'#ef4444') }] },
-  options:{ indexAxis:'y', plugins:{ legend:{ display:false } }, scales:{ x:AX, y:AX } }
 });
 </script>
 {% endblock %}

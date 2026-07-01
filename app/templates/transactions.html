@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0">Giao dịch</h4>
+  <a class="btn btn-primary" href="{{ url_for('main.tx_add') }}">+ Thêm giao dịch</a>
+</div>
+
+<form class="row g-2 mb-3">
+  <div class="col-6 col-md"><input class="form-control" name="ma_cp" placeholder="Mã CP" value="{{ f_ma }}"></div>
+  <div class="col-6 col-md"><select name="loai" class="form-select">
+    <option value="">-- Loại --</option>
+    <option value="mua" {{ 'selected' if f_loai=='mua' }}>Mua</option>
+    <option value="ban" {{ 'selected' if f_loai=='ban' }}>Bán</option>
+  </select></div>
+  <div class="col-12 col-md-auto d-grid"><button class="btn btn-outline-info">Lọc</button></div>
+</form>
+
+{% macro loai_badge(l) %}
+  <span class="badge-dir {{ 'badge-long' if l=='mua' else 'badge-short' }}">{{ 'Mua' if l=='mua' else 'Bán' }}</span>
+{% endmacro %}
+
+<!-- Desktop: bảng -->
+<div class="table-responsive trade-table">
+  <table class="table table-sm align-middle table-dark-soft">
+    <thead><tr>
+      <th>Ngày</th><th>Mã CP</th><th>Loại</th><th class="text-end">Số lượng</th>
+      <th class="text-end">Giá</th><th class="text-end">Giá trị</th><th></th>
+    </tr></thead>
+    <tbody>
+    {% for r in rows %}
+    <tr>
+      <td>{{ r['ngay']|vndate }}</td>
+      <td class="fw-semibold">{{ r['ma_cp'] }}</td>
+      <td>{{ loai_badge(r['loai']) }}</td>
+      <td class="text-end">{{ r['so_luong']|fmt }}</td>
+      <td class="text-end">{{ r['gia']|fmt(2) }}</td>
+      <td class="text-end">{{ ((r['so_luong'] or 0)*(r['gia'] or 0))|fmt }}</td>
+      <td class="text-nowrap">
+        <a href="{{ url_for('main.tx_edit', tid=r['id']) }}">Sửa</a> ·
+        <a href="{{ url_for('main.tx_delete', tid=r['id']) }}" onclick="return confirm('Xóa giao dịch này?')">Xóa</a>
+      </td>
+    </tr>
+    {% endfor %}
+    {% if not rows %}<tr><td colspan="7" class="text-center text-muted">Chưa có giao dịch nào</td></tr>{% endif %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Mobile: thẻ -->
+<div class="trade-cards">
+  {% for r in rows %}
+  <div class="trade-card">
+    <div class="tc-top">
+      <div class="tc-sym">{{ r['ma_cp'] }} {{ loai_badge(r['loai']) }}</div>
+      <div class="tc-pnl">{{ ((r['so_luong'] or 0)*(r['gia'] or 0))|fmt }}</div>
+    </div>
+    <div class="tc-grid">
+      <div>Ngày: <span>{{ r['ngay']|vndate }}</span></div>
+      <div>Số lượng: <span>{{ r['so_luong']|fmt }}</span></div>
+      <div>Giá: <span>{{ r['gia']|fmt(2) }}</span></div>
+    </div>
+    <div class="mt-2">
+      <a class="btn btn-sm btn-outline-info" href="{{ url_for('main.tx_edit', tid=r['id']) }}">Sửa</a>
+      <a class="btn btn-sm btn-outline-danger" href="{{ url_for('main.tx_delete', tid=r['id']) }}" onclick="return confirm('Xóa giao dịch này?')">Xóa</a>
+    </div>
+  </div>
+  {% endfor %}
+  {% if not rows %}<div class="text-center text-muted py-4">Chưa có giao dịch nào</div>{% endif %}
+</div>
+{% endblock %}

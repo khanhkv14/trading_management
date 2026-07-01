@@ -12,5 +12,9 @@ DB_PATH = os.environ.get("DB_PATH", os.path.join(BASE_DIR, "database", "trades.d
 
 if __name__ == "__main__":
     print(f"Đang migrate: {DB_PATH}")
+    # migrate() tạo bảng còn thiếu (CREATE TABLE IF NOT EXISTS) và thêm cột còn
+    # thiếu (ALTER TABLE ADD COLUMN) -> KHÔNG xóa/ghi đè dữ liệu cũ.
+    # Bảng mới 'transactions' (mô hình vị thế) sẽ được tạo tại đây nếu chưa có;
+    # các bảng cũ 'trades'/'signals' vẫn được giữ nguyên.
     migrate(DB_PATH)
-    print("Xong.")
+    print("Xong. Đã đảm bảo bảng: transactions, trades, signals, settings.")

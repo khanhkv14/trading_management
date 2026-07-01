@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block content %}
+<h4 class="mb-3">Vị thế</h4>
+
+<form class="row g-2 mb-3">
+  <div class="col-6 col-md-3"><label>Mã CP</label>
+    <input class="form-control" name="ma_cp" value="{{ f_ma }}"></div>
+  <div class="col-6 col-md-3"><label>Trạng thái</label>
+    <select name="trang_thai" class="form-select">
+      <option value="">Tất cả</option>
+      <option value="open" {{ 'selected' if f_tt=='open' }}>Đang mở</option>
+      <option value="closed" {{ 'selected' if f_tt=='closed' }}>Đã đóng</option>
+    </select></div>
+  <div class="col-6 col-md-2"><label>Mở từ ngày</label>
+    <input type="date" class="form-control" name="tu_ngay" value="{{ tu_ngay }}"></div>
+  <div class="col-6 col-md-2"><label>Đến ngày</label>
+    <input type="date" class="form-control" name="den_ngay" value="{{ den_ngay }}"></div>
+  <div class="col-12 col-md-2 d-grid align-self-end"><button class="btn btn-outline-info">Lọc</button></div>
+</form>
+
+{% macro tt_badge(t) %}
+  <span class="badge-dir {{ 'badge-long' if t=='open' else 'badge-short' }}">{{ 'Đang mở' if t=='open' else 'Đã đóng' }}</span>
+{% endmacro %}
+
+<!-- Desktop: bảng -->
+<div class="table-responsive trade-table">
+  <table class="table table-sm align-middle table-dark-soft">
+    <thead><tr>
+      <th>Mã</th><th>Mở</th><th>Đóng</th><th>T.thái</th>
+      <th class="text-end">SL giữ</th><th class="text-end">Giá mua TB</th>
+      <th class="text-end">Giá bán TB</th><th class="text-end">P/L</th>
+      <th class="text-end">%ROI</th><th></th>
+    </tr></thead>
+    <tbody>
+    {% for p in rows %}
+    <tr>
+      <td class="fw-semibold">{{ p.ma_cp }}</td>
+      <td>{{ p.ngay_mo|vndate }}</td>
+      <td>{{ p.ngay_dong|vndate }}</td>
+      <td>{{ tt_badge(p.trang_thai) }}</td>
+      <td class="text-end">{{ p.so_luong_giu|fmt }}</td>
+      <td class="text-end">{{ p.gia_mua_tb|fmt(2) }}</td>
+      <td class="text-end">{{ p.gia_ban_tb|fmt(2) }}</td>
+      <td class="text-end {{ 'win' if (p.pnl or 0)>=0 else 'loss' }}">{{ p.pnl|fmt }}</td>
+      <td class="text-end {{ 'win' if (p.roi or 0)>=0 else 'loss' }}">{{ (p.roi|fmt(2)) ~ ('%' if p.roi is not none else '') }}</td>
+      <td><a href="{{ url_for('main.position_detail', ma_cp=p.ma_cp, seq=p.seq) }}">Chi tiết</a></td>
+    </tr>
+    {% endfor %}
+    {% if not rows %}<tr><td colspan="10" class="text-center text-muted">Chưa có vị thế nào</td></tr>{% endif %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Mobile: thẻ -->
+<div class="trade-cards">
+  {% for p in rows %}
+  <a class="text-decoration-none text-reset" href="{{ url_for('main.position_detail', ma_cp=p.ma_cp, seq=p.seq) }}">
+  <div class="trade-card">
+    <div class="tc-top">
+      <div class="tc-sym">{{ p.ma_cp }} {{ tt_badge(p.trang_thai) }}</div>
+      <div class="tc-pnl {{ 'win' if (p.pnl or 0)>=0 else 'loss' }}">{{ p.pnl|fmt }}</div>
+    </div>
+    <div class="tc-grid">
+      <div>Mở: <span>{{ p.ngay_mo|vndate }}</span></div>
+      <div>Đóng: <span>{{ p.ngay_dong|vndate }}</span></div>
+      <div>SL giữ: <span>{{ p.so_luong_giu|fmt }}</span></div>
+      <div>Giá mua TB: <span>{{ p.gia_mua_tb|fmt(2) }}</span></div>
+      <div>Giá bán TB: <span>{{ p.gia_ban_tb|fmt(2) }}</span></div>
+      <div>%ROI: <span class="{{ 'win' if (p.roi or 0)>=0 else 'loss' }}">{{ (p.roi|fmt(2)) ~ ('%' if p.roi is not none else '') }}</span></div>
+    </div>
+  </div>
+  </a>
+  {% endfor %}
+  {% if not rows %}<div class="text-center text-muted py-4">Chưa có vị thế nào</div>{% endif %}
+</div>
+{% endblock %}

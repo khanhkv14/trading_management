@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0">Vị thế {{ p.ma_cp }}
+    <span class="badge-dir {{ 'badge-long' if p.trang_thai=='open' else 'badge-short' }}">
+      {{ 'Đang mở' if p.trang_thai=='open' else 'Đã đóng' }}</span></h4>
+  <a class="btn btn-sm btn-outline-info" href="{{ url_for('main.positions') }}">← Danh sách</a>
+</div>
+
+<div class="stat-grid mb-3">
+  <div class="card"><div class="stat-label">Ngày mở</div><div class="stat">{{ p.ngay_mo|vndate }}</div></div>
+  <div class="card"><div class="stat-label">Ngày đóng</div><div class="stat">{{ p.ngay_dong|vndate }}</div></div>
+  <div class="card"><div class="stat-label">SL đang giữ</div><div class="stat">{{ p.so_luong_giu|fmt }}</div></div>
+  <div class="card"><div class="stat-label">Tổng đã mua</div><div class="stat">{{ p.tong_mua|fmt }}</div></div>
+
+  <div class="card"><div class="stat-label">Giá mua TB</div><div class="stat">{{ p.gia_mua_tb|fmt(2) }}</div></div>
+  <div class="card"><div class="stat-label">Giá bán TB</div><div class="stat">{{ p.gia_ban_tb|fmt(2) }}</div></div>
+  <div class="card"><div class="stat-label">P/L thực hiện</div>
+    <div class="stat {{ 'win' if (p.pnl or 0)>=0 else 'loss' }}">{{ p.pnl|fmt }}</div></div>
+  <div class="card"><div class="stat-label">%ROI</div>
+    <div class="stat {{ 'win' if (p.roi or 0)>=0 else 'loss' }}">{{ (p.roi|fmt(2)) ~ ('%' if p.roi is not none else '') }}</div></div>
+</div>
+
+<div class="card p-3">
+  <b>Các giao dịch con ({{ p.so_lenh }})</b>
+  <div class="table-responsive mt-2">
+    <table class="table table-sm table-dark-soft mb-0">
+      <thead><tr>
+        <th>Ngày</th><th>Loại</th><th class="text-end">Số lượng</th>
+        <th class="text-end">Giá</th><th class="text-end">Giá trị</th><th></th>
+      </tr></thead>
+      <tbody>
+      {% for t in txs %}
+      <tr>
+        <td>{{ t['ngay']|vndate }}</td>
+        <td><span class="badge-dir {{ 'badge-long' if t['loai']=='mua' else 'badge-short' }}">{{ 'Mua' if t['loai']=='mua' else 'Bán' }}</span></td>
+        <td class="text-end">{{ t['so_luong']|fmt }}</td>
+        <td class="text-end">{{ t['gia']|fmt(2) }}</td>
+        <td class="text-end">{{ ((t['so_luong'] or 0)*(t['gia'] or 0))|fmt }}</td>
+        <td><a href="{{ url_for('main.tx_edit', tid=t['id']) }}">Sửa</a></td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

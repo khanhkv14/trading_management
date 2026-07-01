@@ -18,6 +18,12 @@ SIGNAL_COLUMNS = [
     ("huong", "TEXT"), ("vung_gia", "TEXT"), ("do_tin_cay", "INTEGER"),
     ("da_vao", "TEXT"), ("ghi_chu", "TEXT"),
 ]
+# Bảng dữ liệu GỐC của mô hình vị thế: mỗi dòng là 1 lệnh khớp (mua/bán).
+# Vị thế được TÍNH ĐỘNG từ bảng này (xem app/positions.py), không lưu phái sinh.
+TRANSACTION_COLUMNS = [
+    ("ngay", "TEXT"), ("ma_cp", "TEXT"), ("loai", "TEXT"),
+    ("so_luong", "REAL"), ("gia", "REAL"),
+]
 
 
 def _connect(db_path):
@@ -46,7 +52,11 @@ def init_db(db_path=None):
     con = _connect(db_path)
     trade_cols = ", ".join(f"{n} {t}" for n, t in TRADE_COLUMNS)
     signal_cols = ", ".join(f"{n} {t}" for n, t in SIGNAL_COLUMNS)
+    tx_cols = ", ".join(f"{n} {t}" for n, t in TRANSACTION_COLUMNS)
     con.executescript(f"""
+        CREATE TABLE IF NOT EXISTS transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, {tx_cols}
+        );
         CREATE TABLE IF NOT EXISTS trades (
             id INTEGER PRIMARY KEY AUTOINCREMENT, {trade_cols}
         );
@@ -83,7 +93,8 @@ def migrate(db_path):
     """Thêm các cột còn thiếu vào bảng đã có (dùng cho auto_migrate.py)."""
     init_db(db_path)
     con = _connect(db_path)
-    for table, cols in (("trades", TRADE_COLUMNS), ("signals", SIGNAL_COLUMNS)):
+    for table, cols in (("transactions", TRANSACTION_COLUMNS),
+                        ("trades", TRADE_COLUMNS), ("signals", SIGNAL_COLUMNS)):
         existing = {r["name"] for r in con.execute(f"PRAGMA table_info({table})")}
         for name, ctype in cols:
             if name not in existing:

@@ -51,9 +51,11 @@
 <!-- Biểu đồ -->
 <div class="row g-3 mb-3">
   <div class="col-12 col-lg-7"><div class="card p-3">
-    <b>P/L &amp; ROI lũy kế (theo ngày đóng)</b><canvas id="cEquity" height="140"></canvas></div></div>
+    <b>P/L &amp; ROI lũy kế (theo ngày đóng)</b>
+    <div class="chart-box"><canvas id="cEquity"></canvas></div></div></div>
   <div class="col-12 col-lg-5"><div class="card p-3">
-    <b>P/L theo mã</b><canvas id="cPair" height="160"></canvas></div></div>
+    <b>P/L theo mã</b>
+    <div class="chart-box"><canvas id="cPair"></canvas></div></div></div>
 </div>
 
 <!-- Xếp hạng mã -->
@@ -74,9 +76,12 @@
 {% endblock %}
 
 {% block scripts %}
+<!-- Chart.js CHỈ nạp ở trang có biểu đồ -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
 const AX = { ticks:{ color:'#64748b' }, grid:{ color:'rgba(148,163,184,.22)' } };
 const LEG = { labels:{ color:'#334155' } };
+const BASE = { responsive:true, maintainAspectRatio:false };
 
 new Chart(document.getElementById('cEquity'), {
   data: {
@@ -89,7 +94,7 @@ new Chart(document.getElementById('cEquity'), {
         borderColor:'#3b82f6', tension:.2, yAxisID:'y1' }
     ]
   },
-  options: { plugins:{ legend:LEG },
+  options: { ...BASE, plugins:{ legend:LEG },
     scales:{ x:AX, y:{ ...AX, position:'left' },
       y1:{ ...AX, position:'right', grid:{ drawOnChartArea:false } } } }
 });
@@ -99,7 +104,7 @@ new Chart(document.getElementById('cPair'), {
   data:{ labels: {{ by_pair|map(attribute='ten')|list|tojson }},
     datasets:[{ label:'P/L', data: {{ by_pair|map(attribute='pnl')|list|tojson }},
       backgroundColor: {{ by_pair|map(attribute='pnl')|list|tojson }}.map(v=>v>=0?'#22c55e':'#ef4444') }] },
-  options:{ plugins:{ legend:{ display:false } }, scales:{ x:AX, y:AX } }
+  options:{ ...BASE, plugins:{ legend:{ display:false } }, scales:{ x:AX, y:AX } }
 });
 </script>
 {% endblock %}

@@ -6,7 +6,7 @@
     <legend>Lệnh khớp</legend>
     <div class="row g-3">
       <div class="col-6 col-md-4"><label>Ngày</label>
-        <input type="date" class="form-control" name="ngay" value="{{ r['ngay'] or '' }}" required></div>
+        <input type="date" id="fld-ngay" class="form-control" name="ngay" value="{{ r['ngay'] or '' }}" required></div>
       <div class="col-6 col-md-4"><label>Mã CP</label>
         <input class="form-control text-uppercase" name="ma_cp" value="{{ r['ma_cp'] or '' }}"
                placeholder="VD: FPT" autocomplete="off" required></div>
@@ -30,4 +30,12 @@
     <a class="btn btn-secondary" href="{{ url_for('main.transactions') }}">Hủy</a>
   </div>
 </form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Dự phòng: nếu ô Ngày trống thì tự điền ngày hôm nay (người dùng vẫn sửa được)
+  var _d = document.getElementById('fld-ngay');
+  if (_d && !_d.value) _d.value = new Date().toISOString().slice(0, 10);
+</script>
 {% endblock %}

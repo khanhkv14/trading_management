@@ -8,19 +8,32 @@
   <div class="col-6 col-md-3"><div class="card p-3"><div>Vị thế đang mở</div><div class="stat">{{ open_count }}</div></div></div>
 </div>
 <div class="row g-3">
-  <div class="col-md-7"><div class="card p-3"><b>P/L lũy kế (theo ngày đóng)</b><canvas id="c1"></canvas></div></div>
-  <div class="col-md-5"><div class="card p-3"><b>P/L theo mã</b><canvas id="c2"></canvas></div></div>
+  <div class="col-md-7"><div class="card p-3"><b>P/L lũy kế (theo ngày đóng)</b>
+    <div class="chart-box"><canvas id="c1"></canvas></div></div></div>
+  <div class="col-md-5"><div class="card p-3"><b>P/L theo mã</b>
+    <div class="chart-box"><canvas id="c2"></canvas></div></div></div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Chart.js CHỈ nạp ở trang có biểu đồ -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
-  new Chart(document.getElementById('c1'), {
-    type: 'line',
-    data: { labels: {{ labels|tojson }}, datasets: [{ label: 'P&L', data: {{ cum|tojson }}, borderColor: '#16a34a', backgroundColor: 'rgba(22,163,74,.12)', fill: true, tension: .2 }] },
-    options: { plugins: { legend: { labels: { color: '#334155' } } }, scales: { x: { ticks: { color: '#64748b' }, grid: { color: 'rgba(148,163,184,.22)' } }, y: { ticks: { color: '#64748b' }, grid: { color: 'rgba(148,163,184,.22)' } } } }
-  });
-  new Chart(document.getElementById('c2'), {
-    type: 'bar',
-    data: { labels: {{ pair_labels|tojson }}, datasets: [{ label: 'P&L', data: {{ pair_vals|tojson }}, backgroundColor: '#2563eb' }] },
-    options: { plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#64748b' }, grid: { color: 'rgba(148,163,184,.22)' } }, y: { ticks: { color: '#64748b' }, grid: { color: 'rgba(148,163,184,.22)' } } } }
-  });
+const AX  = { ticks:{ color:'#64748b' }, grid:{ color:'rgba(148,163,184,.22)' } };
+const BASE = { responsive:true, maintainAspectRatio:false };
+
+new Chart(document.getElementById('c1'), {
+  type: 'line',
+  data: { labels: {{ labels|tojson }}, datasets: [{ label: 'P&L', data: {{ cum|tojson }},
+    borderColor: '#16a34a', backgroundColor: 'rgba(22,163,74,.12)', fill: true, tension: .2 }] },
+  options: { ...BASE, plugins: { legend: { labels: { color: '#334155' } } },
+    scales: { x: AX, y: AX } }
+});
+new Chart(document.getElementById('c2'), {
+  type: 'bar',
+  data: { labels: {{ pair_labels|tojson }}, datasets: [{ label: 'P&L', data: {{ pair_vals|tojson }},
+    backgroundColor: '#2563eb' }] },
+  options: { ...BASE, plugins: { legend: { display: false } }, scales: { x: AX, y: AX } }
+});
 </script>
 {% endblock %}

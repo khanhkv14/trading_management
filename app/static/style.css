@@ -17,6 +17,14 @@ body{ background:var(--bg); color:var(--text); }
 .nav-link.active{ color:var(--brand) !important; background:#eff6ff; }
 a{ color:var(--brand); }
 
+/* Nút "..." trên mobile mở menu Tín hiệu / Đăng xuất */
+.btn-more{ min-height:40px; min-width:40px; padding:0 .6rem; font-size:1.4rem;
+  line-height:1; color:#334155; background:#f1f5f9; border:1px solid var(--border);
+  border-radius:10px; }
+.dropdown-menu{ border-radius:12px; box-shadow:var(--shadow-lg); border-color:var(--border); }
+.dropdown-item{ min-height:44px; display:flex; align-items:center; font-weight:500; }
+.dropdown-item.active{ background:#eff6ff; color:var(--brand); }
+
 /* ---------- Cards & stat ---------- */
 .card{ background:var(--panel); border:1px solid var(--border);
   border-radius:var(--radius); box-shadow:var(--shadow); }
@@ -90,9 +98,19 @@ fieldset.form-group legend{ float:none; width:auto; font-size:.9rem;
   display:flex; flex-direction:column; gap:2px; min-height:52px; justify-content:center; }
 .bottom-nav a span{ font-size:1.25rem; line-height:1; }
 .bottom-nav a.active{ color:var(--brand); }
-@media (max-width:991px){ body{ padding-bottom:60px; } }
+/* Nút "＋ Thêm" nổi bật ở giữa bottom-nav */
+.bottom-nav a.bn-add span{ background:var(--brand); color:#fff; width:38px; height:38px;
+  border-radius:50%; display:inline-flex; align-items:center; justify-content:center;
+  font-size:1.5rem; margin-top:-14px; box-shadow:0 4px 10px rgba(37,99,235,.35); }
+.bottom-nav a.bn-add.active span{ background:#1d4ed8; }
+@media (max-width:991px){ body{ padding-bottom:66px; } }
 
 /* ---------- Alert ---------- */
 .alert-info{ background:#eff6ff; border-color:#bfdbfe; color:#1e40af; }
 
+/* ---------- Biểu đồ: bọc canvas trong khung chiều cao CỐ ĐỊNH ----------
+   Tránh giật do layout nhảy khi Chart.js tự resize. Canvas dùng
+   responsive:true + maintainAspectRatio:false để lấp đầy khung này. */
+.chart-box{ position:relative; height:300px; margin-top:8px; }
+@media (max-width:768px){ .chart-box{ height:240px; } }
 canvas{ max-width:100%; }

@@ -1,0 +1,16 @@
+# Bí mật
+.env
+
+# Cơ sở dữ liệu (dữ liệu thật, giữ riêng)
+database/*.db
+
+# Cache & rác Python
+__pycache__/
+*.pyc
+flask_cache/
+.pytest_cache/
+
+# Môi trường ảo
+venv/
+.venv/
+env/

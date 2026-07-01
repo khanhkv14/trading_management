@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Quản lý Trading</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+{% if session.logged_in %}
+{% set ep = request.endpoint %}
+<nav class="navbar navbar-expand-lg navbar-light px-3">
+  <div class="container-fluid px-0">
+    <span class="navbar-brand fw-bold">📈 Trading</span>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
+            data-bs-target="#navmenu" aria-controls="navmenu"
+            aria-expanded="false" aria-label="Menu">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navmenu">
+      <div class="navbar-nav me-auto">
+        <a class="nav-link {{ 'active' if ep=='main.dashboard' }}" href="{{ url_for('main.dashboard') }}">Tổng quan</a>
+        <a class="nav-link {{ 'active' if ep=='main.trades' }}" href="{{ url_for('main.trades') }}">Lệnh</a>
+        <a class="nav-link {{ 'active' if ep=='main.report' }}" href="{{ url_for('main.report') }}">Báo cáo</a>
+        <a class="nav-link {{ 'active' if ep=='main.signals' }}" href="{{ url_for('main.signals') }}">Tín hiệu</a>
+        <a class="nav-link {{ 'active' if ep=='main.suggest' }}" href="{{ url_for('main.suggest') }}">Gợi ý</a>
+      </div>
+      <a class="nav-link" href="{{ url_for('auth.logout') }}">Đăng xuất</a>
+    </div>
+  </div>
+</nav>
+{% endif %}
+
+<div class="container my-4 pb-5">
+  {% with msgs = get_flashed_messages() %}
+    {% for m in msgs %}<div class="alert alert-info py-2">{{ m }}</div>{% endfor %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</div>
+
+{% if session.logged_in %}
+<!-- Thanh điều hướng đáy cho mobile (bấm 1 tay) -->
+<nav class="bottom-nav d-lg-none">
+  <a href="{{ url_for('main.dashboard') }}" class="{{ 'active' if ep=='main.dashboard' }}"><span>📊</span>Tổng quan</a>
+  <a href="{{ url_for('main.trades') }}" class="{{ 'active' if ep=='main.trades' }}"><span>📋</span>Lệnh</a>
+  <a href="{{ url_for('main.trade_add') }}" class="{{ 'active' if ep=='main.trade_add' }}"><span>➕</span>Thêm</a>
+  <a href="{{ url_for('main.report') }}" class="{{ 'active' if ep=='main.report' }}"><span>📈</span>Báo cáo</a>
+  <a href="{{ url_for('main.suggest') }}" class="{{ 'active' if ep=='main.suggest' }}"><span>💡</span>Gợi ý</a>
+</nav>
+{% endif %}
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

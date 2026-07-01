@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block content %}
+<h4 class="mb-3">Tổng quan</h4>
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3"><div class="card p-3"><div>Số lệnh đã đóng</div><div class="stat">{{ total }}</div></div></div>
+  <div class="col-6 col-md-3"><div class="card p-3"><div>Win-rate</div><div class="stat">{{ win_rate }}%</div></div></div>
+  <div class="col-6 col-md-3"><div class="card p-3"><div>Tổng P&L</div><div class="stat {{ 'win' if total_pnl>=0 else 'loss' }}">{{ total_pnl }}</div></div></div>
+  <div class="col-6 col-md-3"><div class="card p-3"><div>Lệnh đang mở</div><div class="stat">{{ open_count }}</div></div></div>
+</div>
+<div class="row g-3">
+  <div class="col-md-7"><div class="card p-3"><b>P&L lũy kế</b><canvas id="c1"></canvas></div></div>
+  <div class="col-md-5"><div class="card p-3"><b>P&L theo cặp</b><canvas id="c2"></canvas></div></div>
+</div>
+<script>
+  new Chart(document.getElementById('c1'), {
+    type: 'line',
+    data: { labels: {{ labels|tojson }}, datasets: [{ label: 'P&L', data: {{ cum|tojson }}, borderColor: '#16a34a', backgroundColor: 'rgba(22,163,74,.12)', fill: true, tension: .2 }] },
+    options: { plugins: { legend: { labels: { color: '#334155' } } }, scales: { x: { ticks: { color: '#64748b' }, grid: { color: 'rgba(148,163,184,.22)' } }, y: { ticks: { color: '#64748b' }, grid: { color: 'rgba(148,163,184,.22)' } } } }
+  });
+  new Chart(document.getElementById('c2'), {
+    type: 'bar',
+    data: { labels: {{ pair_labels|tojson }}, datasets: [{ label: 'P&L', data: {{ pair_vals|tojson }}, backgroundColor: '#2563eb' }] },
+    options: { plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#64748b' }, grid: { color: 'rgba(148,163,184,.22)' } }, y: { ticks: { color: '#64748b' }, grid: { color: 'rgba(148,163,184,.22)' } } } }
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block content %}
+<h4 class="mb-3">{{ title }}</h4>
+<form method="post" id="tradeForm">
+
+  <fieldset class="form-group">
+    <legend>Thông tin lệnh</legend>
+    <div class="row g-3">
+      <div class="col-12 col-md-4"><label>Ngày giờ</label>
+        <input class="form-control" name="ngay_gio" value="{{ r['ngay_gio'] or now }}"></div>
+      <div class="col-6 col-md-4"><label>Thị trường</label>
+        <select class="form-select" name="thi_truong">
+          {% for m in markets %}<option {{ 'selected' if r['thi_truong']==m }}>{{ m }}</option>{% endfor %}
+        </select></div>
+      <div class="col-6 col-md-4"><label>Cặp/Mã</label>
+        <input class="form-control" name="symbol" value="{{ r['symbol'] or '' }}"></div>
+      <div class="col-6 col-md-4"><label>Hướng</label>
+        <select class="form-select" name="huong" id="huong">
+          <option {{ 'selected' if r['huong']=='Long' }}>Long</option>
+          <option {{ 'selected' if r['huong']=='Short' }}>Short</option>
+        </select></div>
+      <div class="col-6 col-md-4"><label>Chiến lược</label>
+        <input class="form-control" name="chien_luoc" value="{{ r['chien_luoc'] or '' }}"></div>
+      <div class="col-12 col-md-4"><label>Nguồn tín hiệu</label>
+        <input class="form-control" name="nguon" value="{{ r['nguon'] or '' }}"></div>
+    </div>
+  </fieldset>
+
+  <fieldset class="form-group">
+    <legend>Giá &amp; khối lượng</legend>
+    <div class="row g-3">
+      <div class="col-6 col-md-3"><label>Giá vào</label>
+        <input class="form-control" name="gia_vao" id="gia_vao" inputmode="decimal" value="{{ r['gia_vao'] or '' }}"></div>
+      <div class="col-6 col-md-3"><label>Giá ra</label>
+        <input class="form-control" name="gia_ra" id="gia_ra" inputmode="decimal" value="{{ r['gia_ra'] or '' }}"></div>
+      <div class="col-6 col-md-3"><label>Khối lượng</label>
+        <input class="form-control" name="khoi_luong" id="khoi_luong" inputmode="decimal" value="{{ r['khoi_luong'] or '' }}"></div>
+      <div class="col-6 col-md-3"><label>Phí</label>
+        <input class="form-control" name="phi" id="phi" inputmode="decimal" value="{{ r['phi'] or '' }}"></div>
+      <div class="col-6 col-md-3"><label>Stoploss</label>
+        <input class="form-control" name="stoploss" id="stoploss" inputmode="decimal" value="{{ r['stoploss'] or '' }}"></div>
+      <div class="col-6 col-md-3"><label>Takeprofit</label>
+        <input class="form-control" name="takeprofit" id="takeprofit" inputmode="decimal" value="{{ r['takeprofit'] or '' }}"></div>
+      <div class="col-12">
+        <div class="hint">RR dự kiến: <b id="rrOut">—</b> &nbsp;·&nbsp; P/L gợi ý: <b id="plOut">—</b></div>
+      </div>
+    </div>
+  </fieldset>
+
+  <fieldset class="form-group">
+    <legend>Kết quả</legend>
+    <div class="row g-3">
+      <div class="col-6 col-md-4"><label>P&L (lãi/lỗ)</label>
+        <div class="input-group">
+          <input class="form-control" name="pnl" id="pnl" inputmode="decimal" value="{{ r['pnl'] or '' }}">
+          <button class="btn btn-outline-info" type="button" id="usePl" title="Dùng P/L gợi ý">↤</button>
+        </div></div>
+      <div class="col-6 col-md-4"><label>Trạng thái</label>
+        <select class="form-select" name="trang_thai">
+          <option value="closed" {{ 'selected' if r['trang_thai']!='open' }}>Đã đóng</option>
+          <option value="open" {{ 'selected' if r['trang_thai']=='open' }}>Đang mở</option>
+        </select></div>
+      <div class="col-12"><label>Ghi chú</label>
+        <textarea class="form-control" name="ghi_chu">{{ r['ghi_chu'] or '' }}</textarea></div>
+    </div>
+  </fieldset>
+
+  <div class="d-flex gap-2">
+    <button class="btn btn-primary px-4">Lưu</button>
+    <a class="btn btn-secondary" href="{{ url_for('main.trades') }}">Hủy</a>
+  </div>
+</form>
+
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const num = el => { const v = parseFloat(el.value); return isNaN(v) ? null : v; };
+  let lastPl = null;
+
+  function calc(){
+    const gv = num($('gia_vao')), sl = num($('stoploss')), tp = num($('takeprofit'));
+    const gr = num($('gia_ra')), kl = num($('khoi_luong')), phi = num($('phi'));
+    const dir = $('huong').value;
+
+    // RR dự kiến = |TP - vào| / |vào - SL|
+    if (gv !== null && sl !== null && tp !== null && Math.abs(gv - sl) > 0){
+      $('rrOut').textContent = (Math.abs(tp - gv) / Math.abs(gv - sl)).toFixed(2);
+    } else { $('rrOut').textContent = '—'; }
+
+    // P/L gợi ý theo hướng: Long = (ra-vào)*KL ; Short = (vào-ra)*KL ; trừ phí
+    if (gv !== null && gr !== null && kl !== null){
+      let pl = (dir === 'Short' ? (gv - gr) : (gr - gv)) * kl;
+      if (phi !== null) pl -= phi;
+      lastPl = Math.round(pl * 100) / 100;
+      const el = $('plOut');
+      el.textContent = lastPl;
+      el.className = lastPl >= 0 ? 'win' : 'loss';
+    } else { $('plOut').textContent = '—'; lastPl = null; }
+  }
+
+  ['gia_vao','gia_ra','khoi_luong','phi','stoploss','takeprofit'].forEach(id=>{
+    $(id).addEventListener('input', calc);
+  });
+  $('huong').addEventListener('change', calc);
+  $('usePl').addEventListener('click', ()=>{ if(lastPl!==null) $('pnl').value = lastPl; });
+  calc();
+})();
+</script>
+{% endblock %}

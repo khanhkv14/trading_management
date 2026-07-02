@@ -4,9 +4,12 @@
 Mô hình: bảng `transactions` là dữ liệu GỐC (mỗi lệnh khớp = 1 dòng). Vị thế
 được TÍNH ĐỘNG từ giao dịch qua app/positions.compute_positions().
 """
-from datetime import datetime
+import csv
+import io
+from datetime import datetime, timedelta
 from flask import (
-    Blueprint, request, redirect, url_for, flash, render_template, abort
+    Blueprint, request, redirect, url_for, flash, render_template, abort,
+    Response
 )
 from app.models import get_db
 from app.cache import get_positions, invalidate_positions
@@ -108,6 +111,7 @@ def _tx_form_vals():
         loai=request.form.get("loai") if request.form.get("loai") in ("mua", "ban") else "mua",
         so_luong=_num("so_luong"),
         gia=_num("gia"),
+        ghi_chu=(request.form.get("ghi_chu") or "").strip(),
     )
 
 
@@ -118,15 +122,21 @@ def tx_add():
         v = _tx_form_vals()
         db = get_db()
         db.execute(
-            "INSERT INTO transactions (ngay,ma_cp,loai,so_luong,gia) "
-            "VALUES (:ngay,:ma_cp,:loai,:so_luong,:gia)", v)
+            "INSERT INTO transactions (ngay,ma_cp,loai,so_luong,gia,ghi_chu) "
+            "VALUES (:ngay,:ma_cp,:loai,:so_luong,:gia,:ghi_chu)", v)
         db.commit()
         invalidate_positions()
         flash("Transaction added")
         return redirect(url_for("main.transactions"))
     empty = {"ngay": datetime.now().strftime("%Y-%m-%d"), "ma_cp": "",
-             "loai": "mua", "so_luong": "", "gia": ""}
-    return render_template("tx_form.html", title="Add Transaction", r=empty)
+             "loai": "mua", "so_luong": "", "gia": "", "ghi_chu": ""}
+    # Gợi ý 5 mã cổ phiếu giao dịch gần đây nhất (theo id giảm dần) cho ô Ticker.
+    db = get_db()
+    recent_tickers = [row["ma_cp"] for row in db.execute(
+        "SELECT DISTINCT ma_cp FROM transactions ORDER BY id DESC LIMIT 5"
+    ).fetchall()]
+    return render_template("tx_form.html", title="Add Transaction", r=empty,
+                           recent_tickers=recent_tickers)
 
 
 @main_bp.route("/transactions/edit/<int:tid>", methods=["GET", "POST"])
@@ -137,7 +147,7 @@ def tx_edit(tid):
         v = _tx_form_vals(); v["id"] = tid
         db.execute(
             "UPDATE transactions SET ngay=:ngay,ma_cp=:ma_cp,loai=:loai,"
-            "so_luong=:so_luong,gia=:gia WHERE id=:id", v)
+            "so_luong=:so_luong,gia=:gia,ghi_chu=:ghi_chu WHERE id=:id", v)
         db.commit()
         invalidate_positions()
         flash("Transaction updated")
@@ -299,5 +309,69 @@ def report():
         closed = [p for p in closed if f_ma.upper() in p["ma_cp"].upper()]
     closed.sort(key=lambda p: (p["ngay_dong"] or ""))
 
+    # Mặc định khoảng xuất CSV: 1 tháng gần nhất (từ 30 ngày trước -> hôm nay).
+    today = datetime.now()
+    export_to = today.strftime("%Y-%m-%d")
+    export_from = (today - timedelta(days=30)).strftime("%Y-%m-%d")
+
     stats = _compute_report(closed)
-    return render_template("report.html", f_ma=f_ma, **stats)
+    return render_template("report.html", f_ma=f_ma,
+                           export_from=export_from, export_to=export_to, **stats)
+
+
+@main_bp.route("/report/export-closed-csv")
+@login_required
+def report_export_closed_csv():
+    """Export analysis of CLOSED positions whose close date is in [tu_ngay, den_ngay].
+
+    Data are DYNAMICALLY computed positions (get_positions), not raw transactions.
+    A BOM is prepended so Excel reads UTF-8 correctly (notes may hold Vietnamese)."""
+    tu_ngay = (request.args.get("tu_ngay") or "").strip()
+    den_ngay = (request.args.get("den_ngay") or "").strip()
+
+    closed = [p for p in get_positions() if p["trang_thai"] == "closed"]
+    # Lọc theo ngày đóng (so sánh chuỗi 'YYYY-MM-DD' -> đúng thứ tự thời gian).
+    if tu_ngay:
+        closed = [p for p in closed if (p["ngay_dong"] or "") >= tu_ngay]
+    if den_ngay:
+        closed = [p for p in closed if (p["ngay_dong"] or "") <= den_ngay]
+    closed.sort(key=lambda p: (p["ngay_dong"] or "", p["ma_cp"]))
+
+    db = get_db()
+
+    def _notes(tx_ids):
+        # Gộp ghi chú của các giao dịch con thành 1 ô (bỏ ô rỗng, ngăn bằng ' | ').
+        if not tx_ids:
+            return ""
+        qmarks = ",".join("?" * len(tx_ids))
+        rows = db.execute(
+            f"SELECT ghi_chu FROM transactions WHERE id IN ({qmarks}) "
+            f"ORDER BY ngay, id", list(tx_ids)).fetchall()
+        return " | ".join(r["ghi_chu"].strip() for r in rows
+                          if r["ghi_chu"] and r["ghi_chu"].strip())
+
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["Ticker", "Quantity", "Cost Price (Entry)", "Sell Price (Exit)",
+                "Total Value", "PnL", "PnL %", "Open Date", "Close Date", "Note"])
+    for p in closed:
+        qty = p["tong_ban"] or 0
+        cost = p["gia_mua_tb"] or 0
+        total_value = round(qty * cost, 2)
+        w.writerow([
+            p["ma_cp"], qty, cost, p["gia_ban_tb"] or 0,
+            total_value, p["pnl"] if p["pnl"] is not None else 0,
+            p["roi"] if p["roi"] is not None else 0,
+            p["ngay_mo"] or "", p["ngay_dong"] or "", _notes(p["tx_ids"]),
+        ])
+
+    # BOM đầu file để Excel đọc đúng UTF-8 (ghi chú có thể là tiếng Việt).
+    data = "﻿" + buf.getvalue()
+    return Response(
+        data,
+        mimetype="text/csv",
+        headers={
+            "Content-Disposition":
+                "attachment; filename=closed_positions_analysis.csv"
+        },
+    )

@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Blueprint đăng nhập / đăng xuất."""
+"""Blueprint đăng nhập.
+
+Ứng dụng dùng nội bộ nên KHÔNG có chức năng đăng xuất — phiên giữ nguyên cho
+tới khi cookie hết hạn hoặc bị xoá thủ công."""
 from functools import wraps
 from flask import (
     Blueprint, request, redirect, url_for, session, flash,
@@ -35,9 +38,3 @@ def login():
 
         flash("Sai tài khoản hoặc mật khẩu. Vui lòng thử lại.")
     return render_template("login.html")
-
-
-@auth_bp.route("/logout")
-def logout():
-    session.clear()
-    return redirect(url_for("auth.login"))

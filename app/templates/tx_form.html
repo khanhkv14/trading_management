@@ -9,7 +9,11 @@
         <input type="date" id="fld-ngay" class="form-control" name="ngay" value="{{ r['ngay'] or '' }}" required></div>
       <div class="col-6 col-md-4"><label>Ticker</label>
         <input class="form-control text-uppercase" name="ma_cp" value="{{ r['ma_cp'] or '' }}"
-               placeholder="e.g. FPT" autocomplete="off" required></div>
+               placeholder="e.g. FPT" autocomplete="off" list="tickers-list" required>
+        {# Gợi ý 5 mã giao dịch gần nhất — hiện khi click/gõ vào ô, không cần JS. #}
+        <datalist id="tickers-list">
+          {% for t in recent_tickers|default([]) %}<option value="{{ t }}"></option>{% endfor %}
+        </datalist></div>
       <div class="col-6 col-md-4"><label>Type</label>
         <select class="form-select" name="loai">
           <option value="mua" {{ 'selected' if r['loai']=='mua' }}>Buy</option>
@@ -21,6 +25,9 @@
       <div class="col-6 col-md-4"><label>Price</label>
         <input class="form-control" name="gia" inputmode="decimal"
                value="{{ r['gia'] or '' }}" required></div>
+      <div class="col-12"><label>Note</label>
+        <textarea class="form-control" name="ghi_chu" rows="3"
+                  placeholder="Reason for buy/sell, trade context...">{{ r['ghi_chu'] or '' }}</textarea></div>
     </div>
     <div class="hint mt-2">Positions are auto-grouped from Buy/Sell orders of the same ticker.</div>
   </fieldset>

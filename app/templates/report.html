@@ -11,6 +11,25 @@
     <input class="form-control" name="ma_cp" value="{{ f_ma }}" autocomplete="off"></div>
 </form>
 
+<!-- Xuất CSV vị thế ĐÃ ĐÓNG. Dùng <details> làm bảng điều khiển bung ra khi
+     bấm "Xuất dữ liệu" (không JS, không bị SPA can thiệp): mở ra mới lộ ô chọn
+     ngày + nút tải. Form GET (KHÔNG id="filter-form") -> SPA không nuốt submit,
+     trình duyệt nhận Response đính kèm và tải file, KHÔNG điều hướng khỏi trang. -->
+<details class="card p-3 mb-4">
+  <summary class="fw-semibold" style="cursor:pointer;list-style:none;">
+    ⬇ Export Data <span class="text-muted small">(closed positions)</span>
+  </summary>
+  <span class="text-muted small d-block mt-2 mb-2">Pick a close-date range, then download the analysis CSV.</span>
+  <form method="get" action="{{ url_for('main.report_export_closed_csv') }}" class="row g-2 align-items-end">
+    <div class="col-6 col-md-4"><label>From date</label>
+      <input type="date" class="form-control" name="tu_ngay" value="{{ export_from }}"></div>
+    <div class="col-6 col-md-4"><label>To date</label>
+      <input type="date" class="form-control" name="den_ngay" value="{{ export_to }}"></div>
+    <div class="col-12 col-md-4">
+      <button type="submit" class="btn btn-primary w-100">⬇ Download CSV</button></div>
+  </form>
+</details>
+
 <!-- Stat cards -->
 <div class="stat-grid mb-3">
   <div class="card"><div class="stat-label">Total Trades</div><div class="stat">{{ total }}</div></div>

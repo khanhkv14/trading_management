@@ -22,12 +22,13 @@ def create_app():
     app.config.from_object("app.config.Config")
 
     # Đăng ký đóng kết nối DB sau mỗi request
-    from app.models import close_db, init_db
+    from app.models import close_db, migrate
     app.teardown_appcontext(close_db)
 
-    # Tạo bảng nếu chưa có
-    with app.app_context():
-        init_db()
+    # Tạo bảng nếu chưa có + TỰ ĐỘNG thêm cột còn thiếu (vd: transactions.ghi_chu)
+    # cho DB đã tồn tại. Dùng migrate() thay cho init_db() để schema luôn khớp
+    # với TRANSACTION_COLUMNS mà không cần chạy script riêng.
+    migrate(app.config["DB_PATH"])
 
     # Cơ chế SPA: chọn layout theo loại request.
     #   - Request thường (mở URL trực tiếp) -> 'base.html' (đủ sidebar).

@@ -22,7 +22,7 @@ SIGNAL_COLUMNS = [
 # Vị thế được TÍNH ĐỘNG từ bảng này (xem app/positions.py), không lưu phái sinh.
 TRANSACTION_COLUMNS = [
     ("ngay", "TEXT"), ("ma_cp", "TEXT"), ("loai", "TEXT"),
-    ("so_luong", "REAL"), ("gia", "REAL"),
+    ("so_luong", "REAL"), ("gia", "REAL"), ("ghi_chu", "TEXT"),
 ]
 
 

@@ -26,17 +26,7 @@
     <a class="side-link {{ 'active' if is_pos }}"  data-spa href="{{ url_for('main.positions') }}"><span class="ico">📦</span> Positions</a>
     <a class="side-link {{ 'active' if is_rep }}"  data-spa href="{{ url_for('main.report') }}"><span class="ico">📈</span> Analytics</a>
   </nav>
-  <!-- Logout ở dưới cùng (full reload, không SPA) -->
-  <a class="side-link logout" href="{{ url_for('auth.logout') }}"><span class="ico">↩</span> Logout</a>
 </aside>
-
-<!-- Nút Logout AN TOÀN cho MOBILE. Tách hẳn khỏi thanh tab đáy (nơi dễ bấm
-     nhầm khi thao tác nhanh), neo cố định góc trên-phải, có confirm() chống
-     đăng xuất ngoài ý muốn. Đặt NGOÀI #main-content nên KHÔNG bị SPA thay ra
-     khi đổi tab. Ẩn trên desktop (đã có Logout ở sidebar) — xem style.css. -->
-<a class="mobile-logout" href="{{ url_for('auth.logout') }}"
-   onclick="return confirm('Log out of Trading Manager?');"
-   title="Logout" aria-label="Logout">↩</a>
 {% endif %}
 
 <!-- ===== Khu vực nội dung chính (cuộn độc lập) ===== -->

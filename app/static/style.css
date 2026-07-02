@@ -37,8 +37,6 @@ body.is-app{ display:flex; height:100vh; overflow:hidden; }
 .side-link:hover{ background:#f1f5f9; }
 .side-link.active{ background:#eff6ff; color:var(--brand); font-weight:700; }
 .side-link .ico{ font-size:1.1rem; width:22px; text-align:center; flex:0 0 22px; }
-.side-link.logout{ margin-top:auto; color:var(--loss); }
-.side-link.logout:hover{ background:#fee2e2; }
 
 /* ---------- Khu vực nội dung ---------- */
 #main-content{
@@ -59,10 +57,18 @@ body:not(.is-app) #main-content{ max-width:460px; margin:0 auto; padding:24px; }
    (xem base.html) -> lộ viền/đổ bóng nhẹ phân tách header với nội dung.
    ===================================================================== */
 .view-header{
-  position:sticky; top:0; z-index:20;
+  position:sticky;
+  top:0 !important;            /* dính SÁT mép trên vùng cuộn, không để hở khe */
+  z-index:1020;                /* > .card (position:relative) -> luôn vẽ đè lên */
   display:flex; align-items:center; justify-content:space-between; gap:12px;
-  background:var(--bg);
-  margin:-24px -32px 16px; padding:16px 32px;
+  /* Nền ĐỤC HOÀN TOÀN = màu nền app; !important để không bị đè thành trong suốt. */
+  background-color:var(--bg) !important;
+  /* KHÔNG dùng margin-top ÂM: margin-top âm làm lệch điểm "dính" của sticky ->
+     sinh khoảng hở ở đỉnh cho nội dung lọt lên đè chữ. Chỉ kéo NGANG (âm) để
+     nền trải hết bề rộng, bù padding ngang của #main-content (32px). */
+  margin:0 -32px 16px;
+  margin-top:0 !important;
+  padding:1rem 32px;           /* padding-top/bottom = 1rem */
   border-bottom:1px solid transparent;
   transition:border-color .15s ease, box-shadow .15s ease;
 }
@@ -71,9 +77,6 @@ body:not(.is-app) #main-content{ max-width:460px; margin:0 auto; padding:24px; }
   border-bottom-color:var(--border);
   box-shadow:0 6px 12px -10px rgba(15,23,42,.35);
 }
-
-/* Nút logout nổi cho MOBILE (khai báo ở base.html). Desktop: ẩn hoàn toàn. */
-.mobile-logout{ display:none; }
 
 /* =====================================================================
    MOBILE (<=768px): sidebar dọc 240px KHÔNG dùng được trên điện thoại
@@ -104,11 +107,6 @@ body:not(.is-app) #main-content{ max-width:460px; margin:0 auto; padding:24px; }
   }
   .side-link .ico{ width:auto; flex:none; font-size:1.3rem; }
 
-  /* Logout KHÔNG được nằm chung hàng thanh tab đáy (dễ bấm nhầm -> đăng xuất
-     ngoài ý muốn khi thao tác nhanh). Ẩn hẳn trên mobile; thay bằng nút nổi
-     .mobile-logout ở góc trên-phải có confirm(). */
-  .side-link.logout{ display:none !important; }
-
   /* Nội dung cuộn theo window + chừa chỗ cho thanh tab đáy. */
   #main-content{
     height:auto; overflow:visible;
@@ -116,25 +114,13 @@ body:not(.is-app) #main-content{ max-width:460px; margin:0 auto; padding:24px; }
     padding-bottom:calc(76px + env(safe-area-inset-bottom));
   }
 
-  /* View-header dính: bù theo padding mobile (16px 14px) + chừa lề phải cho
-     nút logout nổi. top:0 (đã set ở base) -> dính theo cuộn window. */
+  /* View-header dính khi cuộn theo window (mobile). margin-top:0 để không hở
+     khe ở đỉnh; chỉ kéo NGANG bù padding mobile của #main-content (14px). */
   .view-header{
-    margin:-16px -14px 12px;
-    padding:12px 52px 12px 14px;
+    margin:0 -14px 12px;
+    margin-top:0 !important;
+    padding:1rem 14px;
   }
-
-  /* Nút Logout nổi, tách biệt, an toàn cho mobile. */
-  .mobile-logout{
-    display:flex; align-items:center; justify-content:center;
-    position:fixed; z-index:1040;
-    top:calc(8px + env(safe-area-inset-top)); right:12px;
-    width:40px; height:40px;
-    background:var(--panel); color:var(--loss);
-    border:1px solid var(--border); border-radius:50%;
-    box-shadow:var(--shadow-lg); text-decoration:none;
-    font-size:1.15rem; line-height:1;
-  }
-  .mobile-logout:active{ background:#fee2e2; }
 }
 
 /* ---------- Cards & stat ---------- */

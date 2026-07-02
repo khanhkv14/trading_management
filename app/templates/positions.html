@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends layout|default("base.html") %}
 {% block content %}
 <h4 class="mb-3">Positions</h4>
 
@@ -7,7 +7,7 @@
     <input class="form-control" name="ma_cp" value="{{ f_ma }}" autocomplete="off"></div>
   <div class="col-6"><label>Status</label>
     <select name="trang_thai" class="form-select"
-            onchange="document.getElementById('filter-form').submit();">
+            onchange="this.form.requestSubmit();">
       <option value="open" {{ 'selected' if f_tt=='open' }}>Open</option>
       <option value="closed" {{ 'selected' if f_tt=='closed' }}>Closed</option>
       <option value="all" {{ 'selected' if f_tt not in ('open','closed') }}>All</option>

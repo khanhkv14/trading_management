@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends layout|default("base.html") %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h4 class="mb-0">Transactions</h4>
@@ -8,7 +8,7 @@
 <form id="filter-form" class="row g-2 mb-3">
   <div class="col-6 col-md"><input class="form-control" name="ma_cp" placeholder="Ticker" value="{{ f_ma }}" autocomplete="off"></div>
   <div class="col-6 col-md"><select name="loai" class="form-select"
-      onchange="document.getElementById('filter-form').submit();">
+      onchange="this.form.requestSubmit();">
     <option value="">-- Type --</option>
     <option value="mua" {{ 'selected' if f_loai=='mua' }}>Buy</option>
     <option value="ban" {{ 'selected' if f_loai=='ban' }}>Sell</option>

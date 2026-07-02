@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends layout|default("base.html") %}
 {% block content %}
 <h4 class="mb-3">{{ title }}</h4>
 <form method="post">

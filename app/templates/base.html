@@ -29,6 +29,14 @@
   <!-- Logout ở dưới cùng (full reload, không SPA) -->
   <a class="side-link logout" href="{{ url_for('auth.logout') }}"><span class="ico">↩</span> Logout</a>
 </aside>
+
+<!-- Nút Logout AN TOÀN cho MOBILE. Tách hẳn khỏi thanh tab đáy (nơi dễ bấm
+     nhầm khi thao tác nhanh), neo cố định góc trên-phải, có confirm() chống
+     đăng xuất ngoài ý muốn. Đặt NGOÀI #main-content nên KHÔNG bị SPA thay ra
+     khi đổi tab. Ẩn trên desktop (đã có Logout ở sidebar) — xem style.css. -->
+<a class="mobile-logout" href="{{ url_for('auth.logout') }}"
+   onclick="return confirm('Log out of Trading Manager?');"
+   title="Logout" aria-label="Logout">↩</a>
 {% endif %}
 
 <!-- ===== Khu vực nội dung chính (cuộn độc lập) ===== -->
@@ -77,6 +85,17 @@
 
   function resetViewScope() {
     if (viewCtrl) { try { viewCtrl.abort(); } catch (e) {} }
+    // Hủy MỌI Chart.js của view cũ TRƯỚC khi thay DOM. AbortController chỉ gỡ
+    // event listener; nó KHÔNG biết tới Chart.js. Mỗi chart giữ 1 ResizeObserver
+    // + nằm trong registry nội bộ của Chart.js, nên nếu chỉ innerHTML đè canvas
+    // cũ ra thì chart cũ vẫn bị giữ tham chiếu -> rò rỉ bộ nhớ + observer tích tụ
+    // qua mỗi lần mở lại Dashboard/Analytics. destroy() gỡ sạch cả hai.
+    if (window.Chart && typeof Chart.getChart === 'function') {
+      main.querySelectorAll('canvas').forEach(function (cv) {
+        var ch = Chart.getChart(cv);
+        if (ch) { try { ch.destroy(); } catch (e) {} }
+      });
+    }
     viewCtrl = HAS_AC ? new AbortController() : null;
   }
 
@@ -168,6 +187,7 @@
 
       if (push) history.pushState({ url: url }, '', url);
       setActive(url);
+      updateHeaderShadow();                // reset chỉ báo cuộn cho header mới (scrollTop=0)
     } catch (e) {
       if (e && e.name === 'AbortError') return;   // bị điều hướng mới thay -> im lặng
       window.location.href = url;          // lỗi mạng -> quay về điều hướng thường
@@ -221,8 +241,26 @@
     loadInto(location.pathname + location.search, false);
   });
 
+  /* ---- Chỉ báo cuộn cho .view-header (sticky) --------------------------
+     Khi vùng nội dung trượt quá 5px, gắn class .scrolled để lộ đường viền
+     dưới tinh tế bên dưới header đang dính. Vùng cuộn là #main-content trên
+     desktop, nhưng chuyển sang cuộn theo window trên mobile (layout đổi sang
+     block) -> nghe cả hai cho chắc. Đây là listener của ENGINE (đăng ký MỘT
+     LẦN, bindingView=false) nên KHÔNG dính signal và không bao giờ bị gỡ. */
+  function contentScrollTop() {
+    return (main.scrollTop || 0) || window.pageYOffset ||
+           document.documentElement.scrollTop || 0;
+  }
+  function updateHeaderShadow() {
+    var vh = main.querySelector('.view-header');
+    if (vh) vh.classList.toggle('scrolled', contentScrollTop() > 5);
+  }
+  main.addEventListener('scroll', updateHeaderShadow, { passive: true });
+  window.addEventListener('scroll', updateHeaderShadow, { passive: true });
+
   // Trạng thái ban đầu cho nút Back.
   history.replaceState({ url: location.pathname + location.search }, '', location.href);
+  updateHeaderShadow();                    // đồng bộ cho lần tải đầu (full render)
 })();
 </script>
 </body>

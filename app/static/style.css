@@ -50,6 +50,44 @@ body.is-app{ display:flex; height:100vh; overflow:hidden; }
 /* Trang login (chưa đăng nhập): không có sidebar, canh giữa */
 body:not(.is-app) #main-content{ max-width:460px; margin:0 auto; padding:24px; }
 
+/* =====================================================================
+   MOBILE (<=768px): sidebar dọc 240px KHÔNG dùng được trên điện thoại
+   (che hết màn hình). Chuyển thành THANH TAB Ở ĐÁY, tái sử dụng markup
+   #sidebar / .side-link sẵn có — không cần sửa HTML.
+   ===================================================================== */
+@media (max-width:768px){
+  /* Bỏ layout flex-row desktop -> cho trang cuộn bình thường theo window. */
+  body.is-app{ display:block; height:auto; overflow:visible; }
+
+  /* Sidebar -> thanh điều hướng ngang cố định dưới đáy. */
+  #sidebar{
+    position:fixed; left:0; right:0; bottom:0; top:auto;
+    width:auto; height:auto; flex-direction:row; align-items:stretch;
+    border-right:none; border-top:1px solid var(--border);
+    box-shadow:0 -1px 6px rgba(15,23,42,.10);
+    padding:4px 6px; padding-bottom:calc(4px + env(safe-area-inset-bottom));
+    z-index:1030;
+  }
+  #sidebar .brand{ display:none; }                 /* ẩn logo trên mobile */
+  .side-nav{ flex-direction:row; flex:1 1 auto; gap:0; }
+
+  /* Mỗi mục: icon trên, chữ dưới, chia đều bề ngang. */
+  .side-link{
+    flex:1; flex-direction:column; justify-content:center; gap:2px;
+    padding:6px 2px; font-size:.66rem; font-weight:600;
+    text-align:center; border-radius:8px;
+  }
+  .side-link .ico{ width:auto; flex:none; font-size:1.3rem; }
+  .side-link.logout{ margin-top:0; flex:0 0 auto; }
+
+  /* Nội dung cuộn theo window + chừa chỗ cho thanh tab đáy. */
+  #main-content{
+    height:auto; overflow:visible;
+    padding:16px 14px;
+    padding-bottom:calc(76px + env(safe-area-inset-bottom));
+  }
+}
+
 /* ---------- Cards & stat ---------- */
 .card{ background:var(--panel); border:1px solid var(--border);
   border-radius:var(--radius); box-shadow:var(--shadow); }

@@ -43,14 +43,15 @@ def fmt(v, dec=0):
 
 @main_bp.app_template_filter("vndate")
 def vndate(v):
-    """'YYYY-MM-DD' -> 'DD/MM/YYYY'. Giữ nguyên nếu không khớp."""
+    """'YYYY-MM-DD' -> 'D/M/YY' gọn: bỏ số 0 thừa ở đầu ngày/tháng, năm lấy 2 số
+    cuối (vd 2026-07-02 -> 2/7/26). Giữ nguyên nếu không khớp định dạng."""
     if not v:
         return "—"
     s = str(v)[:10]
     try:
         y, m, d = s.split("-")
-        return f"{d}/{m}/{y}"
-    except ValueError:
+        return f"{int(d)}/{int(m)}/{y[-2:]}"
+    except (ValueError, TypeError):
         return s
 
 
@@ -77,7 +78,7 @@ def transactions():
         page = 1
     if page < 1:
         page = 1
-    per_page = 10
+    per_page = 15
 
     # Mệnh đề WHERE dùng chung cho cả câu đếm và câu lấy dữ liệu.
     where, p = "WHERE 1=1", []

@@ -2,7 +2,7 @@
 {% block content %}
 <div class="view-header">
   <h4>Transactions</h4>
-  <a class="btn btn-primary" href="{{ url_for('main.tx_add') }}">+ Add Transaction</a>
+  <a class="btn btn-primary" data-spa href="{{ url_for('main.tx_add') }}">+ Add Transaction</a>
 </div>
 
 <form id="filter-form" class="row g-2 mb-3">
@@ -21,31 +21,43 @@
   <span class="badge-dir {{ 'badge-long' if l=='mua' else 'badge-short' }}">{{ 'Buy' if l=='mua' else 'Sell' }}</span>
 {% endmacro %}
 
-<!-- Desktop: bảng. Bấm cả dòng để Sửa; nút Xóa chỉ hiện khi di chuột (hover). -->
-<div class="table-responsive trade-table">
-  <table class="table table-sm align-middle table-dark-soft">
-    <thead><tr>
-      <th>Date</th><th>Ticker</th><th>Type</th><th class="text-end">Qty</th>
-      <th class="text-end">Price</th><th class="text-end">Amount</th><th></th>
-    </tr></thead>
-    <tbody>
-    {% for r in rows %}
-    <tr style="cursor: pointer;" onclick="window.location='{{ url_for('main.tx_edit', tid=r['id']) }}';">
-      <td>{{ r['ngay']|vndate }}</td>
-      <td class="fw-semibold">{{ r['ma_cp'] }}</td>
-      <td>{{ loai_badge(r['loai']) }}</td>
-      <td class="text-end">{{ r['so_luong']|fmt }}</td>
-      <td class="text-end">{{ r['gia']|fmt(2) }}</td>
-      <td class="text-end">{{ ((r['so_luong'] or 0)*(r['gia'] or 0))|fmt }}</td>
-      <td class="text-end">
-        <a class="row-del" title="Delete" href="{{ url_for('main.tx_delete', tid=r['id']) }}"
-           onclick="event.stopPropagation(); return confirm('Delete this transaction?');">🗑</a>
-      </td>
-    </tr>
-    {% endfor %}
-    {% if not rows %}<tr><td colspan="7" class="text-center text-muted">No transactions</td></tr>{% endif %}
-    </tbody>
-  </table>
+<!-- Desktop: bảng trong Card, trải full-width. Bấm cả dòng để Sửa; nút Xóa hiện khi hover. -->
+<div class="trade-table card shadow-sm data-card mb-3">
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-hover table-striped table-fixed align-middle w-100">
+        <!-- Phân bổ độ rộng cột: Note chiếm 40% để ưu tiên ghi chú dài. -->
+        <colgroup>
+          <col style="width:8%"><col style="width:8%"><col style="width:6%">
+          <col style="width:9%"><col style="width:10%"><col style="width:15%">
+          <col style="width:40%"><col style="width:4%">
+        </colgroup>
+        <thead><tr>
+          <th>Date</th><th>Ticker</th><th>Type</th>
+          <th class="text-end">Qty</th><th class="text-end">Price</th><th class="text-end">Amount</th>
+          <th>Note</th><th></th>
+        </tr></thead>
+        <tbody>
+        {% for r in rows %}
+        <tr style="cursor:pointer;" onclick="window.location='{{ url_for('main.tx_edit', tid=r['id']) }}';">
+          <td>{{ r['ngay']|vndate }}</td>
+          <td class="fw-semibold">{{ r['ma_cp'] }}</td>
+          <td>{{ loai_badge(r['loai']) }}</td>
+          <td class="text-end">{{ r['so_luong']|fmt }}</td>
+          <td class="text-end">{{ r['gia']|fmt(2) }}</td>
+          <td class="text-end">{{ ((r['so_luong'] or 0)*(r['gia'] or 0))|fmt }}</td>
+          <td title="{{ r['ghi_chu'] or '' }}">{{ r['ghi_chu'] or '' }}</td>
+          <td class="text-end">
+            <a class="row-del" title="Delete" href="{{ url_for('main.tx_delete', tid=r['id']) }}"
+               onclick="event.stopPropagation(); return confirm('Delete this transaction?');">🗑</a>
+          </td>
+        </tr>
+        {% endfor %}
+        {% if not rows %}<tr><td colspan="8" class="text-center text-muted py-4">No transactions</td></tr>{% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
 </div>
 
 <!-- Mobile: thẻ. Bấm thẻ để Sửa; vuốt sang trái để lộ nút Xóa. -->

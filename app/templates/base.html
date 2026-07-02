@@ -146,6 +146,39 @@
     });
   }
 
+  /* ---- Áp một mảnh HTML view vào #main-content -------------------------
+     Tách riêng khỏi fetch để dùng chung cho cả đường CACHE. Điểm mấu chốt
+     hiệu năng: KHÔNG dùng `main.innerHTML = tmp.innerHTML`. Cách cũ parse
+     chuỗi 1 lần vào `tmp`, rồi SERIALIZE ngược DOM->chuỗi, rồi parse LẦN 2
+     khi gán vào `main` (3 thao tác nặng). replaceChildren DI CHUYỂN thẳng
+     các node đã parse sẵn -> chỉ một reflow, bỏ hẳn vòng serialize+parse. */
+  async function applyHTML(html, url, push) {
+    var tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    var scripts = Array.prototype.slice.call(tmp.querySelectorAll('script'));
+    scripts.forEach(function (s) { s.remove(); });   // gỡ ra để chạy tay
+    var nodes = Array.prototype.slice.call(tmp.childNodes);  // chốt trước khi di chuyển
+
+    resetViewScope();                      // (A) abort listener view CŨ trước khi thay DOM
+    main.replaceChildren.apply(main, nodes);
+    main.scrollTop = 0;
+    for (var i = 0; i < scripts.length; i++) { await runScript(scripts[i]); }
+
+    if (push) history.pushState({ url: url }, '', url);
+    setActive(url);
+    updateHeaderShadow();                  // reset chỉ báo cuộn cho header mới (scrollTop=0)
+  }
+
+  /* ---- Cache view phía client (chuyển tab tức thì) ---------------------
+     Trên shared host (PythonAnywhere), chi phí lớn nhất khi đổi tab là
+     round-trip mạng. Lưu lại HTML từng URL đã tải; lần sau bấm lại cùng tab
+     trong TTL thì render thẳng từ bộ nhớ, KHÔNG chạm server. Mutation (thêm/
+     sửa/xóa giao dịch) đi qua POST -> reload cả trang -> cache (nằm trong
+     closure) tự sạch, nên không có nguy cơ hiển thị dữ liệu cũ. TTL ngắn là
+     lưới an toàn phụ. */
+  var viewCache = new Map();
+  var CACHE_TTL = 30000;                    // ms
+
   /* ---- (C) Fetch nguyên tử ---------------------------------------------
      Bỏ khoá 'if (loading) return' (nó nuốt điều hướng khi đang tải, làm
      bộ lọc lệch input). Thay bằng: điều hướng mới ABORT request cũ, chỉ
@@ -153,6 +186,14 @@
   var fetchCtrl = null;
 
   async function loadInto(url, push) {
+    var hit = viewCache.get(url);
+    if (hit && (Date.now() - hit.t) < CACHE_TTL) {   // cache còn tươi -> render tức thì
+      if (fetchCtrl) { try { fetchCtrl.abort(); } catch (e) {} fetchCtrl = null; }
+      main.classList.remove('loading');
+      await applyHTML(hit.html, url, push);
+      return;
+    }
+
     if (fetchCtrl) { try { fetchCtrl.abort(); } catch (e) {} }  // hủy request cũ còn treo
     var myCtrl = fetchCtrl = HAS_AC ? new AbortController() : null;
     main.classList.add('loading');
@@ -165,19 +206,8 @@
       var html = await res.text();
       if (myCtrl !== fetchCtrl) return;    // đã bị request mới thay -> bỏ qua kết quả cũ
 
-      var tmp = document.createElement('div');
-      tmp.innerHTML = html;
-      var scripts = Array.prototype.slice.call(tmp.querySelectorAll('script'));
-      scripts.forEach(function (s) { s.remove(); });   // gỡ ra để chạy tay
-
-      resetViewScope();                    // (A) abort listener view CŨ trước khi thay DOM
-      main.innerHTML = tmp.innerHTML;
-      main.scrollTop = 0;
-      for (var i = 0; i < scripts.length; i++) { await runScript(scripts[i]); }
-
-      if (push) history.pushState({ url: url }, '', url);
-      setActive(url);
-      updateHeaderShadow();                // reset chỉ báo cuộn cho header mới (scrollTop=0)
+      viewCache.set(url, { t: Date.now(), html: html });
+      await applyHTML(html, url, push);
     } catch (e) {
       if (e && e.name === 'AbortError') return;   // bị điều hướng mới thay -> im lặng
       window.location.href = url;          // lỗi mạng -> quay về điều hướng thường

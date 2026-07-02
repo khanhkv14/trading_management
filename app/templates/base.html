@@ -45,16 +45,62 @@
 /* =====================================================================
    SPA loader: bấm menu -> Fetch phần nội dung -> chèn vào #main-content.
    Sidebar giữ nguyên, không reload toàn trang (fix giật lag).
+
+   3 cơ chế chống rò rỉ / chống giật (xem loadInto):
+   (A) Vòng đời listener theo view: mọi listener mà SCRIPT NỘI TUYẾN của
+       view gắn lên document/window/#main-content được tự động kèm
+       AbortSignal của view hiện tại; đổi tab -> abort -> trình duyệt gỡ
+       sạch, không tích tụ qua nhiều lần innerHTML.
+   (B) Purge script: thẻ <script> nội tuyến sau khi chạy xong được gỡ
+       NGAY khỏi DOM, không để tồn đọng node chết.
+   (C) Fetch nguyên tử: request cũ còn treo bị abort khi có điều hướng
+       mới -> chỉ đúng MỘT phản hồi mới nhất được áp vào DOM.
    ===================================================================== */
 (function () {
   var main = document.getElementById('main-content');
   if (!main) return;                       // trang login: bỏ qua
 
+  var HAS_AC = (typeof AbortController !== 'undefined');
+
   // Ghi nhớ các script đã nạp (bootstrap/chart.js...) để không nạp lại.
   var loadedSrc = new Set();
   document.querySelectorAll('script[src]').forEach(function (s) { loadedSrc.add(s.src); });
 
-  var loading = false;
+  /* ---- (A) Vòng đời listener của từng view -----------------------------
+     Bọc addEventListener trên các đối tượng "sống lâu". Khi đang chạy
+     script nội tuyến của view (bindingView=true), listener nào chưa có
+     signal sẽ được chèn signal của view hiện tại. resetViewScope() abort
+     view cũ -> gỡ toàn bộ listener của view đó trong một nhịp. Listener
+     của CHÍNH engine (đăng ký lúc init, bindingView=false) không bị đụng. */
+  var viewCtrl   = null;     // AbortController của view đang hiển thị
+  var bindingView = false;   // true khi đang thực thi <script> của view
+
+  function resetViewScope() {
+    if (viewCtrl) { try { viewCtrl.abort(); } catch (e) {} }
+    viewCtrl = HAS_AC ? new AbortController() : null;
+  }
+
+  [document, window, main].forEach(function (target) {
+    var native = target.addEventListener.bind(target);
+    target.addEventListener = function (type, listener, opts) {
+      if (bindingView && viewCtrl) {
+        if (opts === undefined || typeof opts === 'boolean') {
+          opts = { capture: !!opts, signal: viewCtrl.signal };
+        } else if (opts && typeof opts === 'object' && !opts.signal) {
+          opts = Object.assign({}, opts, { signal: viewCtrl.signal });
+        }
+      }
+      return native(type, listener, opts);
+    };
+  });
+
+  // API tường minh cho script view nào muốn tự quản (không bắt buộc).
+  window.SPA = {
+    get signal() { return viewCtrl ? viewCtrl.signal : undefined; },
+    onCleanup: function (fn) {
+      if (viewCtrl) viewCtrl.signal.addEventListener('abort', fn, { once: true });
+    }
+  };
 
   // Chạy lại 1 thẻ <script> đã bị innerHTML vô hiệu hoá.
   function runScript(old) {
@@ -65,11 +111,17 @@
         s.src = old.src;
         s.onload = function () { loadedSrc.add(s.src); resolve(); };
         s.onerror = function () { resolve(); };
-        document.body.appendChild(s);
+        document.body.appendChild(s);      // giữ lại: thư viện cần tồn tại
       } else {                             // script nội tuyến: bọc IIFE để
         // tránh xung đột 'const đã khai báo' khi chuyển đi/lại nhiều lần.
         s.textContent = '(function(){\n' + old.textContent + '\n})();';
-        document.body.appendChild(s);
+        bindingView = true;                // (A) listener gắn trong đây -> có signal
+        try {
+          document.body.appendChild(s);    // inline script chạy ĐỒNG BỘ ngay tại đây
+        } finally {
+          bindingView = false;
+          s.remove();                      // (B) purge ngay: không để node chết tồn đọng
+        }
         resolve();
       }
     });
@@ -85,20 +137,31 @@
     });
   }
 
+  /* ---- (C) Fetch nguyên tử ---------------------------------------------
+     Bỏ khoá 'if (loading) return' (nó nuốt điều hướng khi đang tải, làm
+     bộ lọc lệch input). Thay bằng: điều hướng mới ABORT request cũ, chỉ
+     phản hồi mới nhất được ghi vào DOM. */
+  var fetchCtrl = null;
+
   async function loadInto(url, push) {
-    if (loading) return;
-    loading = true;
+    if (fetchCtrl) { try { fetchCtrl.abort(); } catch (e) {} }  // hủy request cũ còn treo
+    var myCtrl = fetchCtrl = HAS_AC ? new AbortController() : null;
     main.classList.add('loading');
     try {
-      var res = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      var res = await fetch(url, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        signal: myCtrl ? myCtrl.signal : undefined
+      });
       if (!res.ok) throw new Error(res.status);
       var html = await res.text();
+      if (myCtrl !== fetchCtrl) return;    // đã bị request mới thay -> bỏ qua kết quả cũ
 
       var tmp = document.createElement('div');
       tmp.innerHTML = html;
       var scripts = Array.prototype.slice.call(tmp.querySelectorAll('script'));
       scripts.forEach(function (s) { s.remove(); });   // gỡ ra để chạy tay
 
+      resetViewScope();                    // (A) abort listener view CŨ trước khi thay DOM
       main.innerHTML = tmp.innerHTML;
       main.scrollTop = 0;
       for (var i = 0; i < scripts.length; i++) { await runScript(scripts[i]); }
@@ -106,13 +169,19 @@
       if (push) history.pushState({ url: url }, '', url);
       setActive(url);
     } catch (e) {
+      if (e && e.name === 'AbortError') return;   // bị điều hướng mới thay -> im lặng
       window.location.href = url;          // lỗi mạng -> quay về điều hướng thường
       return;
     } finally {
-      loading = false;
-      main.classList.remove('loading');
+      if (myCtrl === fetchCtrl) {          // chỉ request mới nhất mới được dọn cờ
+        fetchCtrl = null;
+        main.classList.remove('loading');
+      }
     }
   }
+
+  // ---- Listener của ENGINE: đăng ký MỘT LẦN lúc init (bindingView=false,
+  //      nên KHÔNG dính signal, KHÔNG bao giờ bị gỡ) ----------------------
 
   // Bấm link có data-spa -> điều hướng SPA.
   document.addEventListener('click', function (e) {
@@ -132,14 +201,19 @@
     loadInto(location.pathname + (params ? '?' + params : ''), true);
   });
 
-  // Gõ vào ô lọc dạng text -> tự submit sau 400ms (debounce, dùng requestSubmit
-  // để kích hoạt sự kiện 'submit' ở trên). Áp dụng cho mọi trang có filter-form.
-  var filterTimer;
+  /* Gõ vào ô lọc dạng text -> tự submit sau 400ms.
+     Debounce SINGLE-INSTANCE: mọi phím gõ đều clear handle cũ trước khi
+     đặt handle mới -> chỉ đúng MỘT requestSubmit khi ngừng gõ, mọi timeout
+     cũ bị hủy sạch (kết hợp (C) đảm bảo chỉ một fetch nguyên tử). */
+  var filterTimer = null;
   document.addEventListener('input', function (e) {
     var t = e.target;
     if (!t.form || t.form.id !== 'filter-form' || t.type === 'date') return;
-    clearTimeout(filterTimer);
-    filterTimer = setTimeout(function () { t.form.requestSubmit(); }, 400);
+    if (filterTimer) clearTimeout(filterTimer);
+    filterTimer = setTimeout(function () {
+      filterTimer = null;
+      t.form.requestSubmit();
+    }, 400);
   });
 
   // Back/Forward của trình duyệt.

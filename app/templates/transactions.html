@@ -100,39 +100,90 @@
   }
 </style>
 <script>
-  // Vuốt sang trái (swipe-left) trên thẻ mobile để lộ nút Delete.
-  // Vuốt phải hoặc chạm vào thẻ đang mở -> đóng lại. Chạm bình thường -> mở trang Sửa.
+  // Vuốt-để-xóa (Swipe-to-Delete) kiểu native cho thẻ mobile:
+  //  - Chỉ MỘT thẻ được mở tại một thời điểm (exclusive).
+  //  - Khóa trục: chỉ trượt ngang khi vuốt ngang rõ ràng; cuộn dọc thì thẻ đứng yên.
+  //  - Chạm ra ngoài / cuộn trang -> tự đóng thẻ đang mở.
   (function () {
-    var THRESHOLD = 40;   // px tối thiểu để tính là vuốt
+    var THRESHOLD = 40;   // px tối thiểu để coi là một cú vuốt ngang
+    var DIR_MIN   = 8;    // px tối thiểu để xác định (khóa) hướng vuốt
+
+    // Thẻ đang mở duy nhất trên toàn trang.
+    var activeSwipedCard = null;
+
+    function closeActive() {
+      if (activeSwipedCard) {
+        activeSwipedCard.classList.remove('swiped');
+        activeSwipedCard = null;
+      }
+    }
+    function openCard(card) {
+      // Đóng thẻ cũ (nếu khác) trước khi mở thẻ mới -> chỉ 1 thẻ mở.
+      if (activeSwipedCard && activeSwipedCard !== card) {
+        activeSwipedCard.classList.remove('swiped');
+      }
+      card.classList.add('swiped');
+      activeSwipedCard = card;
+    }
+
     document.querySelectorAll('.trade-cards .trade-card').forEach(function (card) {
-      var startX = 0, startY = 0, moved = false;
+      var startX = 0, startY = 0, moved = false, lock = null; // lock: null|'h'|'v'
 
       card.addEventListener('touchstart', function (e) {
         var t = e.changedTouches[0];
-        startX = t.clientX; startY = t.clientY; moved = false;
+        startX = t.clientX; startY = t.clientY;
+        moved = false; lock = null;
       }, { passive: true });
 
       card.addEventListener('touchmove', function (e) {
         var t = e.changedTouches[0];
         var dx = t.clientX - startX, dy = t.clientY - startY;
-        if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) moved = true;
+        var ax = Math.abs(dx), ay = Math.abs(dy);
+
+        // Khóa hướng ngay khi chuyển động đủ rõ, rồi giữ nguyên cả cử chỉ.
+        if (lock === null) {
+          if (ax < DIR_MIN && ay < DIR_MIN) return; // chưa rõ hướng
+          lock = (ax > ay) ? 'h' : 'v';
+        }
+        // Đang cuộn dọc -> KHÔNG động vào thẻ (fix lỗi nhích ngang khi cuộn).
+        if (lock === 'v') { moved = false; return; }
+        // Vuốt ngang rõ ràng.
+        if (ax > 10) moved = true;
       }, { passive: true });
 
       card.addEventListener('touchend', function (e) {
+        if (lock !== 'h') return;      // không phải vuốt ngang -> bỏ qua
         var dx = e.changedTouches[0].clientX - startX;
-        if (dx < -THRESHOLD) card.classList.add('swiped');
-        else if (dx > THRESHOLD) card.classList.remove('swiped');
+        if (dx < -THRESHOLD) openCard(card);     // vuốt trái -> mở (đóng thẻ khác)
+        else if (dx > THRESHOLD) closeActive();  // vuốt phải -> đóng
       }, { passive: true });
 
-      // Chặn điều hướng (onclick mở trang Sửa) khi vừa vuốt hoặc thẻ đang mở.
+      // Chặn điều hướng (mở trang Sửa) khi vừa vuốt, hoặc đóng thẻ nếu đang mở.
       card.addEventListener('click', function (e) {
         if (moved || card.classList.contains('swiped')) {
           e.stopImmediatePropagation();
           e.preventDefault();
-          if (!moved) card.classList.remove('swiped');
+          if (!moved) closeActive();   // chạm vào thẻ đang mở -> đóng lại
         }
       }, true);
     });
+
+    // Chạm ra ngoài thẻ đang mở -> đóng. (Chạm trong thẻ/nút Delete thì giữ nguyên.)
+    document.addEventListener('touchstart', function (e) {
+      if (!activeSwipedCard) return;
+      var wrap = activeSwipedCard.closest('.tc-wrap');
+      if (wrap && wrap.contains(e.target)) return;
+      closeActive();
+    }, { passive: true });
+
+    // Bắt đầu cuộn trang -> đóng thẻ đang mở. Scroller là #main-content (SPA layout).
+    var scroller = document.getElementById('main-content');
+    if (scroller) scroller.addEventListener('scroll', closeActive, { passive: true });
+    window.addEventListener('scroll', closeActive, { passive: true });
+
+    // Reset trạng thái vuốt khi bộ lọc auto-submit (tìm Ticker / đổi Loại lệnh).
+    var filter = document.getElementById('filter-form');
+    if (filter) filter.addEventListener('submit', closeActive, true);
   })();
 </script>
 {% endblock %}

@@ -1,16 +1,16 @@
 {% extends "base.html" %}
 {% block content %}
-<h4 class="mb-3">Tổng quan</h4>
+<h4 class="mb-3">Dashboard</h4>
 <div class="row g-3 mb-4">
-  <div class="col-6 col-md-3"><div class="card p-3"><div>Vị thế đã đóng</div><div class="stat">{{ total }}</div></div></div>
-  <div class="col-6 col-md-3"><div class="card p-3"><div>Win-rate</div><div class="stat">{{ win_rate }}%</div></div></div>
-  <div class="col-6 col-md-3"><div class="card p-3"><div>Tổng P/L</div><div class="stat {{ 'win' if total_pnl>=0 else 'loss' }}">{{ total_pnl|fmt }}</div></div></div>
-  <div class="col-6 col-md-3"><div class="card p-3"><div>Vị thế đang mở</div><div class="stat">{{ open_count }}</div></div></div>
+  <div class="col-6 col-md-3"><div class="card p-3"><div>Closed Positions</div><div class="stat">{{ total }}</div></div></div>
+  <div class="col-6 col-md-3"><div class="card p-3"><div>Win Rate</div><div class="stat">{{ win_rate }}%</div></div></div>
+  <div class="col-6 col-md-3"><div class="card p-3"><div>Total PnL</div><div class="stat {{ 'win' if total_pnl>=0 else 'loss' }}">{{ total_pnl|fmt }}</div></div></div>
+  <div class="col-6 col-md-3"><div class="card p-3"><div>Open Positions</div><div class="stat">{{ open_count }}</div></div></div>
 </div>
 <div class="row g-3">
-  <div class="col-md-7"><div class="card p-3"><b>P/L lũy kế (theo ngày đóng)</b>
+  <div class="col-md-7"><div class="card p-3"><b>Cumulative PnL (by Close Date)</b>
     <div class="chart-box"><canvas id="c1"></canvas></div></div></div>
-  <div class="col-md-5"><div class="card p-3"><b>P/L theo mã</b>
+  <div class="col-md-5"><div class="card p-3"><b>PnL by Ticker</b>
     <div class="chart-box"><canvas id="c2"></canvas></div></div></div>
 </div>
 {% endblock %}

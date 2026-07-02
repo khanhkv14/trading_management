@@ -1,76 +1,77 @@
 {% extends "base.html" %}
 {% block content %}
-<h4 class="mb-3">Vị thế</h4>
+<h4 class="mb-3">Positions</h4>
 
-<form class="row g-2 mb-3">
-  <div class="col-6 col-md-3"><label>Mã CP</label>
-    <input class="form-control" name="ma_cp" value="{{ f_ma }}"></div>
-  <div class="col-6 col-md-3"><label>Trạng thái</label>
-    <select name="trang_thai" class="form-select">
-      <option value="">Tất cả</option>
-      <option value="open" {{ 'selected' if f_tt=='open' }}>Đang mở</option>
-      <option value="closed" {{ 'selected' if f_tt=='closed' }}>Đã đóng</option>
+<form id="filter-form" class="row g-2 mb-3">
+  <div class="col-6"><label>Ticker</label>
+    <input class="form-control" name="ma_cp" value="{{ f_ma }}" autocomplete="off"></div>
+  <div class="col-6"><label>Status</label>
+    <select name="trang_thai" class="form-select"
+            onchange="document.getElementById('filter-form').submit();">
+      <option value="open" {{ 'selected' if f_tt=='open' }}>Open</option>
+      <option value="closed" {{ 'selected' if f_tt=='closed' }}>Closed</option>
+      <option value="all" {{ 'selected' if f_tt not in ('open','closed') }}>All</option>
     </select></div>
-  <div class="col-6 col-md-2"><label>Mở từ ngày</label>
-    <input type="date" class="form-control" name="tu_ngay" value="{{ tu_ngay }}"></div>
-  <div class="col-6 col-md-2"><label>Đến ngày</label>
-    <input type="date" class="form-control" name="den_ngay" value="{{ den_ngay }}"></div>
-  <div class="col-12 col-md-2 d-grid align-self-end"><button class="btn btn-outline-info">Lọc</button></div>
 </form>
 
 {% macro tt_badge(t) %}
-  <span class="badge-dir {{ 'badge-long' if t=='open' else 'badge-short' }}">{{ 'Đang mở' if t=='open' else 'Đã đóng' }}</span>
+  <span class="badge-dir {{ 'badge-long' if t=='open' else 'badge-short' }}">{{ 'Open' if t=='open' else 'Closed' }}</span>
 {% endmacro %}
 
-<!-- Desktop: bảng -->
+<!-- Desktop: table. When filtering "Open", hide 3 columns Avg Exit / PnL / ROI -->
 <div class="table-responsive trade-table">
   <table class="table table-sm align-middle table-dark-soft">
     <thead><tr>
-      <th>Mã</th><th>Mở</th><th>Đóng</th><th>T.thái</th>
-      <th class="text-end">SL giữ</th><th class="text-end">Giá mua TB</th>
-      <th class="text-end">Giá bán TB</th><th class="text-end">P/L</th>
-      <th class="text-end">%ROI</th><th></th>
+      <th>Ticker</th><th>Open Date</th><th>Close Date</th><th>Status</th>
+      <th class="text-end">Qty</th><th class="text-end">Avg Entry</th>
+      {% if f_tt != 'open' %}
+      <th class="text-end">Avg Exit</th><th class="text-end">PnL</th><th class="text-end">ROI (%)</th>
+      {% endif %}
     </tr></thead>
     <tbody>
     {% for p in rows %}
-    <tr>
+    <tr style="cursor: pointer;"
+        onclick="window.location='{{ url_for('main.position_detail', ma_cp=p.ma_cp, seq=p.seq) }}';">
       <td class="fw-semibold">{{ p.ma_cp }}</td>
       <td>{{ p.ngay_mo|vndate }}</td>
       <td>{{ p.ngay_dong|vndate }}</td>
       <td>{{ tt_badge(p.trang_thai) }}</td>
       <td class="text-end">{{ p.so_luong_giu|fmt }}</td>
       <td class="text-end">{{ p.gia_mua_tb|fmt(2) }}</td>
+      {% if f_tt != 'open' %}
       <td class="text-end">{{ p.gia_ban_tb|fmt(2) }}</td>
       <td class="text-end {{ 'win' if (p.pnl or 0)>=0 else 'loss' }}">{{ p.pnl|fmt }}</td>
       <td class="text-end {{ 'win' if (p.roi or 0)>=0 else 'loss' }}">{{ (p.roi|fmt(2)) ~ ('%' if p.roi is not none else '') }}</td>
-      <td><a href="{{ url_for('main.position_detail', ma_cp=p.ma_cp, seq=p.seq) }}">Chi tiết</a></td>
+      {% endif %}
     </tr>
     {% endfor %}
-    {% if not rows %}<tr><td colspan="10" class="text-center text-muted">Chưa có vị thế nào</td></tr>{% endif %}
+    {% if not rows %}<tr><td colspan="{{ 6 if f_tt=='open' else 9 }}" class="text-center text-muted">No positions</td></tr>{% endif %}
     </tbody>
   </table>
 </div>
 
-<!-- Mobile: thẻ -->
+<!-- Mobile: cards -->
 <div class="trade-cards">
   {% for p in rows %}
   <a class="text-decoration-none text-reset" href="{{ url_for('main.position_detail', ma_cp=p.ma_cp, seq=p.seq) }}">
   <div class="trade-card">
     <div class="tc-top">
       <div class="tc-sym">{{ p.ma_cp }} {{ tt_badge(p.trang_thai) }}</div>
-      <div class="tc-pnl {{ 'win' if (p.pnl or 0)>=0 else 'loss' }}">{{ p.pnl|fmt }}</div>
+      {% if f_tt != 'open' %}<div class="tc-pnl {{ 'win' if (p.pnl or 0)>=0 else 'loss' }}">{{ p.pnl|fmt }}</div>{% endif %}
     </div>
     <div class="tc-grid">
-      <div>Mở: <span>{{ p.ngay_mo|vndate }}</span></div>
-      <div>Đóng: <span>{{ p.ngay_dong|vndate }}</span></div>
-      <div>SL giữ: <span>{{ p.so_luong_giu|fmt }}</span></div>
-      <div>Giá mua TB: <span>{{ p.gia_mua_tb|fmt(2) }}</span></div>
-      <div>Giá bán TB: <span>{{ p.gia_ban_tb|fmt(2) }}</span></div>
-      <div>%ROI: <span class="{{ 'win' if (p.roi or 0)>=0 else 'loss' }}">{{ (p.roi|fmt(2)) ~ ('%' if p.roi is not none else '') }}</span></div>
+      <div>Open: <span>{{ p.ngay_mo|vndate }}</span></div>
+      <div>Close: <span>{{ p.ngay_dong|vndate }}</span></div>
+      <div>Qty: <span>{{ p.so_luong_giu|fmt }}</span></div>
+      <div>Avg Entry: <span>{{ p.gia_mua_tb|fmt(2) }}</span></div>
+      {% if f_tt != 'open' %}
+      <div>Avg Exit: <span>{{ p.gia_ban_tb|fmt(2) }}</span></div>
+      <div>ROI: <span class="{{ 'win' if (p.roi or 0)>=0 else 'loss' }}">{{ (p.roi|fmt(2)) ~ ('%' if p.roi is not none else '') }}</span></div>
+      {% endif %}
     </div>
   </div>
   </a>
   {% endfor %}
-  {% if not rows %}<div class="text-center text-muted py-4">Chưa có vị thế nào</div>{% endif %}
+  {% if not rows %}<div class="text-center text-muted py-4">No positions</div>{% endif %}
 </div>
 {% endblock %}

@@ -36,11 +36,18 @@ def _new_pos(ma_cp, seq, ngay_mo):
 def _finalize(cur, closed):
     tong_mua, tong_ban = cur["tong_mua"], cur["tong_ban"]
     gia_mua_tb = cur["buy_amt"] / tong_mua if tong_mua else None
-    gia_ban_tb = cur["sell_amt"] / tong_ban if tong_ban else None
-    pnl = cur["realized"] if tong_ban else None
-    # Vốn của phần đã bán = giá mua TB * số lượng đã bán -> mẫu số của %ROI.
-    von_ban = gia_mua_tb * tong_ban if (gia_mua_tb and tong_ban) else None
-    roi = pnl / von_ban * 100 if (pnl is not None and von_ban) else None
+
+    # QUY TẮC: P/L, %ROI và Giá bán TB CHỈ ghi nhận khi vị thế ĐÃ ĐÓNG HOÀN
+    # TOÀN. Vị thế đang mở (kể cả đã bán một phần) để trống các giá trị này.
+    if closed:
+        gia_ban_tb = cur["sell_amt"] / tong_ban if tong_ban else None
+        pnl = cur["realized"] if tong_ban else None
+        # Vốn của phần đã bán = giá mua TB * số lượng đã bán -> mẫu số %ROI.
+        von_ban = gia_mua_tb * tong_ban if (gia_mua_tb and tong_ban) else None
+        roi = pnl / von_ban * 100 if (pnl is not None and von_ban) else None
+    else:
+        gia_ban_tb = pnl = roi = None
+
     return {
         "ma_cp": cur["ma_cp"], "seq": cur["seq"],
         "ngay_mo": cur["ngay_mo"], "ngay_dong": cur["ngay_dong"],

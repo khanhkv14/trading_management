@@ -1,70 +1,138 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
-  <h4 class="mb-0">Giao dịch</h4>
-  <a class="btn btn-primary" href="{{ url_for('main.tx_add') }}">+ Thêm giao dịch</a>
+  <h4 class="mb-0">Transactions</h4>
+  <a class="btn btn-primary" href="{{ url_for('main.tx_add') }}">+ Add Transaction</a>
 </div>
 
-<form class="row g-2 mb-3">
-  <div class="col-6 col-md"><input class="form-control" name="ma_cp" placeholder="Mã CP" value="{{ f_ma }}"></div>
-  <div class="col-6 col-md"><select name="loai" class="form-select">
-    <option value="">-- Loại --</option>
-    <option value="mua" {{ 'selected' if f_loai=='mua' }}>Mua</option>
-    <option value="ban" {{ 'selected' if f_loai=='ban' }}>Bán</option>
+<form id="filter-form" class="row g-2 mb-3">
+  <div class="col-6 col-md"><input class="form-control" name="ma_cp" placeholder="Ticker" value="{{ f_ma }}" autocomplete="off"></div>
+  <div class="col-6 col-md"><select name="loai" class="form-select"
+      onchange="document.getElementById('filter-form').submit();">
+    <option value="">-- Type --</option>
+    <option value="mua" {{ 'selected' if f_loai=='mua' }}>Buy</option>
+    <option value="ban" {{ 'selected' if f_loai=='ban' }}>Sell</option>
   </select></div>
-  <div class="col-12 col-md-auto d-grid"><button class="btn btn-outline-info">Lọc</button></div>
 </form>
 
 {% macro loai_badge(l) %}
-  <span class="badge-dir {{ 'badge-long' if l=='mua' else 'badge-short' }}">{{ 'Mua' if l=='mua' else 'Bán' }}</span>
+  <span class="badge-dir {{ 'badge-long' if l=='mua' else 'badge-short' }}">{{ 'Buy' if l=='mua' else 'Sell' }}</span>
 {% endmacro %}
 
-<!-- Desktop: bảng -->
+<!-- Desktop: bảng. Bấm cả dòng để Sửa; nút Xóa chỉ hiện khi di chuột (hover). -->
 <div class="table-responsive trade-table">
   <table class="table table-sm align-middle table-dark-soft">
     <thead><tr>
-      <th>Ngày</th><th>Mã CP</th><th>Loại</th><th class="text-end">Số lượng</th>
-      <th class="text-end">Giá</th><th class="text-end">Giá trị</th><th></th>
+      <th>Date</th><th>Ticker</th><th>Type</th><th class="text-end">Qty</th>
+      <th class="text-end">Price</th><th class="text-end">Amount</th><th></th>
     </tr></thead>
     <tbody>
     {% for r in rows %}
-    <tr>
+    <tr style="cursor: pointer;" onclick="window.location='{{ url_for('main.tx_edit', tid=r['id']) }}';">
       <td>{{ r['ngay']|vndate }}</td>
       <td class="fw-semibold">{{ r['ma_cp'] }}</td>
       <td>{{ loai_badge(r['loai']) }}</td>
       <td class="text-end">{{ r['so_luong']|fmt }}</td>
       <td class="text-end">{{ r['gia']|fmt(2) }}</td>
       <td class="text-end">{{ ((r['so_luong'] or 0)*(r['gia'] or 0))|fmt }}</td>
-      <td class="text-nowrap">
-        <a href="{{ url_for('main.tx_edit', tid=r['id']) }}">Sửa</a> ·
-        <a href="{{ url_for('main.tx_delete', tid=r['id']) }}" onclick="return confirm('Xóa giao dịch này?')">Xóa</a>
+      <td class="text-end">
+        <a class="row-del" title="Delete" href="{{ url_for('main.tx_delete', tid=r['id']) }}"
+           onclick="event.stopPropagation(); return confirm('Delete this transaction?');">🗑</a>
       </td>
     </tr>
     {% endfor %}
-    {% if not rows %}<tr><td colspan="7" class="text-center text-muted">Chưa có giao dịch nào</td></tr>{% endif %}
+    {% if not rows %}<tr><td colspan="7" class="text-center text-muted">No transactions</td></tr>{% endif %}
     </tbody>
   </table>
 </div>
 
-<!-- Mobile: thẻ -->
+<!-- Mobile: thẻ. Bấm thẻ để Sửa; vuốt sang trái để lộ nút Xóa. -->
 <div class="trade-cards">
   {% for r in rows %}
-  <div class="trade-card">
-    <div class="tc-top">
-      <div class="tc-sym">{{ r['ma_cp'] }} {{ loai_badge(r['loai']) }}</div>
-      <div class="tc-pnl">{{ ((r['so_luong'] or 0)*(r['gia'] or 0))|fmt }}</div>
-    </div>
-    <div class="tc-grid">
-      <div>Ngày: <span>{{ r['ngay']|vndate }}</span></div>
-      <div>Số lượng: <span>{{ r['so_luong']|fmt }}</span></div>
-      <div>Giá: <span>{{ r['gia']|fmt(2) }}</span></div>
-    </div>
-    <div class="mt-2">
-      <a class="btn btn-sm btn-outline-info" href="{{ url_for('main.tx_edit', tid=r['id']) }}">Sửa</a>
-      <a class="btn btn-sm btn-outline-danger" href="{{ url_for('main.tx_delete', tid=r['id']) }}" onclick="return confirm('Xóa giao dịch này?')">Xóa</a>
+  <div class="tc-wrap">
+    <a class="tc-del" href="{{ url_for('main.tx_delete', tid=r['id']) }}"
+       onclick="return confirm('Delete this transaction?');">Delete</a>
+    <div class="trade-card" style="cursor: pointer;"
+         onclick="window.location='{{ url_for('main.tx_edit', tid=r['id']) }}';">
+      <div class="tc-top">
+        <div class="tc-sym">{{ r['ma_cp'] }} {{ loai_badge(r['loai']) }}</div>
+        <div class="tc-pnl">{{ ((r['so_luong'] or 0)*(r['gia'] or 0))|fmt }}</div>
+      </div>
+      <div class="tc-grid">
+        <div>Date: <span>{{ r['ngay']|vndate }}</span></div>
+        <div>Qty: <span>{{ r['so_luong']|fmt }}</span></div>
+        <div>Price: <span>{{ r['gia']|fmt(2) }}</span></div>
+      </div>
     </div>
   </div>
   {% endfor %}
-  {% if not rows %}<div class="text-center text-muted py-4">Chưa có giao dịch nào</div>{% endif %}
+  {% if not rows %}<div class="text-center text-muted py-4">No transactions</div>{% endif %}
 </div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+  /* Desktop: nút xóa ẩn, chỉ hiện khi hover vào dòng */
+  .trade-table tbody tr .row-del{
+    opacity:0; color:var(--loss); text-decoration:none; font-size:1.05rem;
+    padding:2px 6px; border-radius:6px; transition:opacity .15s ease, background .15s ease;
+  }
+  .trade-table tbody tr:hover .row-del{ opacity:1; }
+  .trade-table tbody tr .row-del:hover{ background:#fee2e2; }
+
+  /* Mobile: vuốt để xóa. Thẻ trượt sang trái làm lộ nút Delete phía sau. */
+  .tc-wrap{
+    position:relative; overflow:hidden;
+    border-radius:var(--radius); margin-bottom:12px;
+  }
+  .tc-wrap .trade-card{
+    position:relative; z-index:1; margin-bottom:0;
+    transition:transform .25s ease; will-change:transform;
+    -webkit-user-select:none; user-select:none;
+  }
+  .tc-wrap .trade-card.swiped{ transform:translateX(-88px); }
+  .tc-del{
+    position:absolute; top:0; right:0; z-index:0;
+    height:100%; width:88px;
+    display:flex; align-items:center; justify-content:center;
+    background:var(--loss); color:#fff !important;
+    font-weight:600; text-decoration:none;
+  }
+</style>
+<script>
+  // Vuốt sang trái (swipe-left) trên thẻ mobile để lộ nút Delete.
+  // Vuốt phải hoặc chạm vào thẻ đang mở -> đóng lại. Chạm bình thường -> mở trang Sửa.
+  (function () {
+    var THRESHOLD = 40;   // px tối thiểu để tính là vuốt
+    document.querySelectorAll('.trade-cards .trade-card').forEach(function (card) {
+      var startX = 0, startY = 0, moved = false;
+
+      card.addEventListener('touchstart', function (e) {
+        var t = e.changedTouches[0];
+        startX = t.clientX; startY = t.clientY; moved = false;
+      }, { passive: true });
+
+      card.addEventListener('touchmove', function (e) {
+        var t = e.changedTouches[0];
+        var dx = t.clientX - startX, dy = t.clientY - startY;
+        if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) moved = true;
+      }, { passive: true });
+
+      card.addEventListener('touchend', function (e) {
+        var dx = e.changedTouches[0].clientX - startX;
+        if (dx < -THRESHOLD) card.classList.add('swiped');
+        else if (dx > THRESHOLD) card.classList.remove('swiped');
+      }, { passive: true });
+
+      // Chặn điều hướng (onclick mở trang Sửa) khi vừa vuốt hoặc thẻ đang mở.
+      card.addEventListener('click', function (e) {
+        if (moved || card.classList.contains('swiped')) {
+          e.stopImmediatePropagation();
+          e.preventDefault();
+          if (!moved) card.classList.remove('swiped');
+        }
+      }, true);
+    });
+  })();
+</script>
 {% endblock %}

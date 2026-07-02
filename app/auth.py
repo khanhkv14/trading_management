@@ -24,7 +24,7 @@ def login():
         if request.form.get("password") == current_app.config["ADMIN_PASSWORD"]:
             session["logged_in"] = True
             return redirect(url_for("main.dashboard"))
-        flash("Sai mật khẩu")
+        flash("Wrong password")
     return render_template("login.html")
 
 

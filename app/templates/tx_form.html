@@ -3,31 +3,31 @@
 <h4 class="mb-3">{{ title }}</h4>
 <form method="post">
   <fieldset class="form-group">
-    <legend>Lệnh khớp</legend>
+    <legend>Order Fill</legend>
     <div class="row g-3">
-      <div class="col-6 col-md-4"><label>Ngày</label>
+      <div class="col-6 col-md-4"><label>Date</label>
         <input type="date" id="fld-ngay" class="form-control" name="ngay" value="{{ r['ngay'] or '' }}" required></div>
-      <div class="col-6 col-md-4"><label>Mã CP</label>
+      <div class="col-6 col-md-4"><label>Ticker</label>
         <input class="form-control text-uppercase" name="ma_cp" value="{{ r['ma_cp'] or '' }}"
-               placeholder="VD: FPT" autocomplete="off" required></div>
-      <div class="col-6 col-md-4"><label>Loại</label>
+               placeholder="e.g. FPT" autocomplete="off" required></div>
+      <div class="col-6 col-md-4"><label>Type</label>
         <select class="form-select" name="loai">
-          <option value="mua" {{ 'selected' if r['loai']=='mua' }}>Mua</option>
-          <option value="ban" {{ 'selected' if r['loai']=='ban' }}>Bán</option>
+          <option value="mua" {{ 'selected' if r['loai']=='mua' }}>Buy</option>
+          <option value="ban" {{ 'selected' if r['loai']=='ban' }}>Sell</option>
         </select></div>
-      <div class="col-6 col-md-4"><label>Số lượng</label>
+      <div class="col-6 col-md-4"><label>Qty</label>
         <input class="form-control" name="so_luong" inputmode="decimal"
                value="{{ r['so_luong'] or '' }}" required></div>
-      <div class="col-6 col-md-4"><label>Giá</label>
+      <div class="col-6 col-md-4"><label>Price</label>
         <input class="form-control" name="gia" inputmode="decimal"
                value="{{ r['gia'] or '' }}" required></div>
     </div>
-    <div class="hint mt-2">Vị thế sẽ được hệ thống tự gộp từ các lệnh Mua/Bán cùng mã.</div>
+    <div class="hint mt-2">Positions are auto-grouped from Buy/Sell orders of the same ticker.</div>
   </fieldset>
 
   <div class="d-flex gap-2">
-    <button class="btn btn-primary px-4">Lưu</button>
-    <a class="btn btn-secondary" href="{{ url_for('main.transactions') }}">Hủy</a>
+    <button class="btn btn-primary px-4">Save</button>
+    <a class="btn btn-secondary" href="{{ url_for('main.transactions') }}">Cancel</a>
   </div>
 </form>
 {% endblock %}

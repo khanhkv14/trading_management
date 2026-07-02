@@ -1,75 +1,58 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
-  <h4 class="mb-0">Báo cáo &amp; Thống kê</h4>
-  <span class="text-muted small">Tính trên vị thế đã đóng</span>
+  <h4 class="mb-0">Analytics</h4>
+  <span class="text-muted small">Based on closed positions</span>
 </div>
 
-<!-- Bộ lọc -->
-<form class="row g-2 mb-3">
-  <div class="col-6 col-md-3"><label>Đóng từ ngày</label>
-    <input type="date" class="form-control" name="tu_ngay" value="{{ tu_ngay }}"></div>
-  <div class="col-6 col-md-3"><label>Đến ngày</label>
-    <input type="date" class="form-control" name="den_ngay" value="{{ den_ngay }}"></div>
-  <div class="col-6 col-md-3"><label>Mã CP</label>
-    <input class="form-control" name="ma_cp" value="{{ f_ma }}"></div>
-  <div class="col-6 col-md-3 d-grid align-self-end"><button class="btn btn-outline-info">Lọc</button></div>
+<!-- Filters (auto-submit, no button) -->
+<form id="filter-form" class="row g-2 mb-4">
+  <div class="col-12"><label>Ticker</label>
+    <input class="form-control" name="ma_cp" value="{{ f_ma }}" autocomplete="off"></div>
 </form>
 
-<!-- Cấu hình vốn -->
-<form method="post" class="row g-2 mb-4 align-items-end">
-  {% for k,v in {'tu_ngay':tu_ngay,'den_ngay':den_ngay,'ma_cp':f_ma}.items() %}
-    {% if v %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endif %}
-  {% endfor %}
-  <div class="col-8 col-md-4"><label>Vốn tài khoản (để tính ROI)</label>
-    <input class="form-control" name="von" inputmode="decimal" value="{{ capital or '' }}"></div>
-  <div class="col-4 col-md-2 d-grid"><button class="btn btn-outline-info">Lưu vốn</button></div>
-</form>
-
-<!-- Thẻ chỉ số -->
+<!-- Stat cards -->
 <div class="stat-grid mb-3">
-  <div class="card"><div class="stat-label">Số vị thế</div><div class="stat">{{ total }}</div></div>
-  <div class="card"><div class="stat-label">Thắng / Thua / BE</div>
+  <div class="card"><div class="stat-label">Total Trades</div><div class="stat">{{ total }}</div></div>
+  <div class="card"><div class="stat-label">Wins / Losses / BE</div>
     <div class="stat"><span class="win">{{ wins }}</span> / <span class="loss">{{ losses }}</span> / {{ be }}</div></div>
-  <div class="card"><div class="stat-label">Win-rate</div><div class="stat">{{ win_rate }}%</div></div>
-  <div class="card"><div class="stat-label">Tổng P/L</div>
+  <div class="card"><div class="stat-label">Win Rate</div><div class="stat">{{ win_rate }}%</div></div>
+  <div class="card"><div class="stat-label">Total PnL</div>
     <div class="stat {{ 'win' if total_pnl>=0 else 'loss' }}">{{ total_pnl|fmt }}</div></div>
 
-  <div class="card"><div class="stat-label">%ROI (theo vốn)</div>
-    <div class="stat {{ 'win' if (roi or 0)>=0 else 'loss' }}">{{ roi if roi is not none else '— (đặt vốn)' }}{{ '%' if roi is not none else '' }}</div></div>
-  <div class="card"><div class="stat-label">Avg win</div><div class="stat win">{{ avg_win|fmt }}</div></div>
-  <div class="card"><div class="stat-label">Avg loss</div><div class="stat loss">{{ avg_loss|fmt }}</div></div>
-  <div class="card"><div class="stat-label">Tỉ lệ RR (|win|/|loss|)</div><div class="stat">{{ rr_actual if rr_actual is not none else '—' }}</div></div>
+  <div class="card"><div class="stat-label">Avg Win</div><div class="stat win">{{ avg_win|fmt }}</div></div>
+  <div class="card"><div class="stat-label">Avg Loss</div><div class="stat loss">{{ avg_loss|fmt }}</div></div>
+  <div class="card"><div class="stat-label">Actual R:R Ratio</div><div class="stat">{{ rr_actual if rr_actual is not none else '—' }}</div></div>
 
-  <div class="card"><div class="stat-label">Profit factor</div><div class="stat">{{ profit_factor if profit_factor is not none else '—' }}</div></div>
-  <div class="card"><div class="stat-label">Chuỗi thắng dài nhất</div><div class="stat win">{{ max_win_streak }}</div></div>
-  <div class="card"><div class="stat-label">Chuỗi thua dài nhất</div><div class="stat loss">{{ max_loss_streak }}</div></div>
-  <div class="card"><div class="stat-label">Kỳ vọng / vị thế</div>
+  <div class="card"><div class="stat-label">Profit Factor</div><div class="stat">{{ profit_factor if profit_factor is not none else '—' }}</div></div>
+  <div class="card"><div class="stat-label">Max Win Streak</div><div class="stat win">{{ max_win_streak }}</div></div>
+  <div class="card"><div class="stat-label">Max Loss Streak</div><div class="stat loss">{{ max_loss_streak }}</div></div>
+  <div class="card"><div class="stat-label">Expectancy / Trade</div>
     <div class="stat {{ 'win' if expectancy>=0 else 'loss' }}">{{ expectancy|fmt }}</div></div>
 </div>
 
-<!-- Biểu đồ -->
+<!-- Charts -->
 <div class="row g-3 mb-3">
   <div class="col-12 col-lg-7"><div class="card p-3">
-    <b>P/L &amp; ROI lũy kế (theo ngày đóng)</b>
+    <b>Cumulative PnL (by Close Date)</b>
     <div class="chart-box"><canvas id="cEquity"></canvas></div></div></div>
   <div class="col-12 col-lg-5"><div class="card p-3">
-    <b>P/L theo mã</b>
+    <b>PnL by Ticker</b>
     <div class="chart-box"><canvas id="cPair"></canvas></div></div></div>
 </div>
 
-<!-- Xếp hạng mã -->
+<!-- Ranking by ticker -->
 <div class="card p-3">
-  <b>Xếp hạng theo mã</b>
+  <b>Ranking by Ticker</b>
   <div class="table-responsive mt-2"><table class="table table-sm table-dark-soft mb-0">
-    <thead><tr><th>Mã</th><th class="text-end">Vị thế</th><th class="text-end">Win-rate</th><th class="text-end">P/L</th></tr></thead>
+    <thead><tr><th>Ticker</th><th class="text-end">Trades</th><th class="text-end">Win Rate</th><th class="text-end">PnL</th></tr></thead>
     <tbody>
       {% for x in by_pair %}
       <tr><td class="fw-semibold">{{ x.ten }}</td><td class="text-end">{{ x.n }}</td>
         <td class="text-end">{{ x.wr }}%</td>
         <td class="text-end {{ 'win' if x.pnl>=0 else 'loss' }}">{{ x.pnl|fmt }}</td></tr>
       {% endfor %}
-      {% if not by_pair %}<tr><td colspan="4" class="text-center text-muted">Không có dữ liệu</td></tr>{% endif %}
+      {% if not by_pair %}<tr><td colspan="4" class="text-center text-muted">No data</td></tr>{% endif %}
     </tbody>
   </table></div>
 </div>
@@ -87,22 +70,18 @@ new Chart(document.getElementById('cEquity'), {
   data: {
     labels: {{ eq_labels|tojson }},
     datasets: [
-      { type:'line', label:'P/L lũy kế', data: {{ eq_cum|tojson }},
+      { type:'line', label:'Cumulative PnL', data: {{ eq_cum|tojson }},
         borderColor:'#22c55e', backgroundColor:'rgba(34,197,94,.15)',
-        fill:true, tension:.2, yAxisID:'y' },
-      { type:'line', label:'ROI lũy kế (%)', data: {{ roi_cum|tojson }},
-        borderColor:'#3b82f6', tension:.2, yAxisID:'y1' }
+        fill:true, tension:.2 }
     ]
   },
-  options: { ...BASE, plugins:{ legend:LEG },
-    scales:{ x:AX, y:{ ...AX, position:'left' },
-      y1:{ ...AX, position:'right', grid:{ drawOnChartArea:false } } } }
+  options: { ...BASE, plugins:{ legend:LEG }, scales:{ x:AX, y:AX } }
 });
 
 new Chart(document.getElementById('cPair'), {
   type:'bar',
   data:{ labels: {{ by_pair|map(attribute='ten')|list|tojson }},
-    datasets:[{ label:'P/L', data: {{ by_pair|map(attribute='pnl')|list|tojson }},
+    datasets:[{ label:'PnL', data: {{ by_pair|map(attribute='pnl')|list|tojson }},
       backgroundColor: {{ by_pair|map(attribute='pnl')|list|tojson }}.map(v=>v>=0?'#22c55e':'#ef4444') }] },
   options:{ ...BASE, plugins:{ legend:{ display:false } }, scales:{ x:AX, y:AX } }
 });

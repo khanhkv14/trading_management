@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Blueprint chính: tổng quan, giao dịch (mua/bán), vị thế, báo cáo, tín hiệu.
+"""Blueprint chính: tổng quan, giao dịch (mua/bán), vị thế, báo cáo.
 
 Mô hình: bảng `transactions` là dữ liệu GỐC (mỗi lệnh khớp = 1 dòng). Vị thế
 được TÍNH ĐỘNG từ giao dịch qua app/positions.compute_positions().
@@ -8,13 +8,11 @@ from datetime import datetime
 from flask import (
     Blueprint, request, redirect, url_for, flash, render_template, abort
 )
-from app.models import get_db, get_setting, set_setting
-from app.positions import compute_positions
+from app.models import get_db
+from app.cache import get_positions, invalidate_positions
 from app.auth import login_required
 
 main_bp = Blueprint("main", __name__)
-
-VON_KEY = "von_tai_khoan"
 
 
 # ------------------------- Bộ lọc hiển thị -------------------------
@@ -61,17 +59,6 @@ def _num(name):
         return None
 
 
-def _f(x):
-    try:
-        return float(x) if x not in (None, "") else None
-    except (ValueError, TypeError):
-        return None
-
-
-def _all_transactions():
-    return get_db().execute("SELECT * FROM transactions").fetchall()
-
-
 # ------------------------- GIAO DỊCH (mua/bán) -------------------------
 @main_bp.route("/transactions")
 @login_required
@@ -109,11 +96,12 @@ def tx_add():
             "INSERT INTO transactions (ngay,ma_cp,loai,so_luong,gia) "
             "VALUES (:ngay,:ma_cp,:loai,:so_luong,:gia)", v)
         db.commit()
-        flash("Đã thêm giao dịch")
+        invalidate_positions()
+        flash("Transaction added")
         return redirect(url_for("main.transactions"))
     empty = {"ngay": datetime.now().strftime("%Y-%m-%d"), "ma_cp": "",
              "loai": "mua", "so_luong": "", "gia": ""}
-    return render_template("tx_form.html", title="Thêm giao dịch", r=empty)
+    return render_template("tx_form.html", title="Add Transaction", r=empty)
 
 
 @main_bp.route("/transactions/edit/<int:tid>", methods=["GET", "POST"])
@@ -126,12 +114,13 @@ def tx_edit(tid):
             "UPDATE transactions SET ngay=:ngay,ma_cp=:ma_cp,loai=:loai,"
             "so_luong=:so_luong,gia=:gia WHERE id=:id", v)
         db.commit()
-        flash("Đã cập nhật giao dịch")
+        invalidate_positions()
+        flash("Transaction updated")
         return redirect(url_for("main.transactions"))
     r = db.execute("SELECT * FROM transactions WHERE id=?", (tid,)).fetchone()
     if r is None:
         abort(404)
-    return render_template("tx_form.html", title="Sửa giao dịch", r=r)
+    return render_template("tx_form.html", title="Edit Transaction", r=r)
 
 
 @main_bp.route("/transactions/delete/<int:tid>")
@@ -140,7 +129,8 @@ def tx_delete(tid):
     db = get_db()
     db.execute("DELETE FROM transactions WHERE id=?", (tid,))
     db.commit()
-    flash("Đã xóa giao dịch")
+    invalidate_positions()
+    flash("Transaction deleted")
     return redirect(url_for("main.transactions"))
 
 
@@ -149,30 +139,23 @@ def tx_delete(tid):
 @login_required
 def positions():
     f_ma = request.args.get("ma_cp", "").strip()
-    f_tt = request.args.get("trang_thai", "")
-    tu = request.args.get("tu_ngay", "")
-    den = request.args.get("den_ngay", "")
+    f_tt = request.args.get("trang_thai", "open")  # mặc định: Đang mở
 
-    pos = compute_positions(_all_transactions())
+    pos = list(get_positions())  # copy: tránh .sort() làm thay đổi cache
     if f_ma:
         pos = [p for p in pos if f_ma.upper() in p["ma_cp"].upper()]
     if f_tt in ("open", "closed"):
         pos = [p for p in pos if p["trang_thai"] == f_tt]
-    if tu:
-        pos = [p for p in pos if (p["ngay_mo"] or "") >= tu]
-    if den:
-        pos = [p for p in pos if (p["ngay_mo"] or "") <= den]
     pos.sort(key=lambda p: (p["ngay_mo"] or "", p["seq"]), reverse=True)
 
-    return render_template("positions.html", rows=pos,
-                           f_ma=f_ma, f_tt=f_tt, tu_ngay=tu, den_ngay=den)
+    return render_template("positions.html", rows=pos, f_ma=f_ma, f_tt=f_tt)
 
 
 @main_bp.route("/positions/<ma_cp>/<int:seq>")
 @login_required
 def position_detail(ma_cp, seq):
     db = get_db()
-    pos = compute_positions(_all_transactions())
+    pos = get_positions()
     match = next((p for p in pos if p["ma_cp"] == ma_cp and p["seq"] == seq), None)
     if match is None:
         abort(404)
@@ -188,7 +171,7 @@ def position_detail(ma_cp, seq):
 @main_bp.route("/")
 @login_required
 def dashboard():
-    pos = compute_positions(_all_transactions())
+    pos = get_positions()
     closed = sorted([p for p in pos if p["trang_thai"] == "closed"],
                     key=lambda p: (p["ngay_dong"] or ""))
     open_pos = [p for p in pos if p["trang_thai"] == "open"]
@@ -218,7 +201,7 @@ def dashboard():
 
 
 # ------------------------- BÁO CÁO -------------------------
-def _compute_report(closed, capital):
+def _compute_report(closed):
     """Thống kê trên các vị thế ĐÃ ĐÓNG (đã sắp tăng dần theo ngày đóng)."""
     total = len(closed)
     win_rows = [p for p in closed if (p["pnl"] or 0) > 0]
@@ -227,7 +210,6 @@ def _compute_report(closed, capital):
 
     win_rate = round(wins / total * 100, 1) if total else 0
     total_pnl = round(sum((p["pnl"] or 0) for p in closed), 2)
-    roi = round(total_pnl / capital * 100, 2) if capital else None
 
     sum_win = sum((p["pnl"] or 0) for p in win_rows)
     sum_loss = sum((p["pnl"] or 0) for p in loss_rows)  # âm
@@ -252,12 +234,11 @@ def _compute_report(closed, capital):
     wr = win_rate / 100
     expectancy = round(wr * avg_win - (1 - wr) * avg_loss, 2)
 
-    eq_labels, eq_cum, roi_cum, running = [], [], [], 0
+    eq_labels, eq_cum, running = [], [], 0
     for p in closed:
         running += (p["pnl"] or 0)
         eq_labels.append(vndate(p["ngay_dong"]))
         eq_cum.append(round(running, 2))
-        roi_cum.append(round(running / capital * 100, 2) if capital else 0)
 
     g = {}
     for p in closed:
@@ -274,62 +255,24 @@ def _compute_report(closed, capital):
 
     return dict(
         total=total, wins=wins, losses=losses, be=be,
-        win_rate=win_rate, total_pnl=total_pnl, roi=roi,
+        win_rate=win_rate, total_pnl=total_pnl,
         avg_win=avg_win, avg_loss=avg_loss,
         rr_actual=rr_actual, profit_factor=profit_factor,
         max_win_streak=max_win_streak, max_loss_streak=max_loss_streak,
         expectancy=expectancy,
-        eq_labels=eq_labels, eq_cum=eq_cum, roi_cum=roi_cum, by_pair=by_pair,
+        eq_labels=eq_labels, eq_cum=eq_cum, by_pair=by_pair,
     )
 
 
-@main_bp.route("/report", methods=["GET", "POST"])
+@main_bp.route("/report")
 @login_required
 def report():
-    if request.method == "POST":
-        set_setting(VON_KEY, _f(request.form.get("von")) or 0)
-        flash("Đã lưu vốn tài khoản")
-        keep = {k: request.form.get(k) for k in ("tu_ngay", "den_ngay", "ma_cp")
-                if request.form.get(k)}
-        return redirect(url_for("main.report", **keep))
-
-    capital = _f(get_setting(VON_KEY)) or 0
-    tu_ngay = request.args.get("tu_ngay", "")
-    den_ngay = request.args.get("den_ngay", "")
     f_ma = request.args.get("ma_cp", "").strip()
 
-    pos = compute_positions(_all_transactions())
-    closed = [p for p in pos if p["trang_thai"] == "closed"]
+    closed = [p for p in get_positions() if p["trang_thai"] == "closed"]
     if f_ma:
         closed = [p for p in closed if f_ma.upper() in p["ma_cp"].upper()]
-    if tu_ngay:
-        closed = [p for p in closed if (p["ngay_dong"] or "") >= tu_ngay]
-    if den_ngay:
-        closed = [p for p in closed if (p["ngay_dong"] or "") <= den_ngay]
     closed.sort(key=lambda p: (p["ngay_dong"] or ""))
 
-    stats = _compute_report(closed, capital)
-    return render_template(
-        "report.html", capital=capital,
-        tu_ngay=tu_ngay, den_ngay=den_ngay, f_ma=f_ma, **stats)
-
-
-# ------------------------- TÍN HIỆU (giữ nguyên) -------------------------
-@main_bp.route("/signals", methods=["GET", "POST"])
-@login_required
-def signals():
-    db = get_db()
-    if request.method == "POST":
-        db.execute("""INSERT INTO signals
-          (ngay_gio,nguon,symbol,huong,vung_gia,do_tin_cay,da_vao,ghi_chu)
-          VALUES (?,?,?,?,?,?,?,?)""", (
-            request.form.get("ngay_gio") or datetime.now().strftime("%Y-%m-%d %H:%M"),
-            request.form.get("nguon"), request.form.get("symbol"),
-            request.form.get("huong"), request.form.get("vung_gia"),
-            int(request.form.get("do_tin_cay") or 3),
-            request.form.get("da_vao") or "no", request.form.get("ghi_chu")))
-        db.commit()
-        flash("Đã thêm tín hiệu")
-        return redirect(url_for("main.signals"))
-    rows = db.execute("SELECT * FROM signals ORDER BY ngay_gio DESC").fetchall()
-    return render_template("signals.html", rows=rows)
+    stats = _compute_report(closed)
+    return render_template("report.html", f_ma=f_ma, **stats)

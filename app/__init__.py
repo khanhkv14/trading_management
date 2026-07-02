@@ -5,7 +5,14 @@ from flask import Flask, request
 
 try:
     from dotenv import load_dotenv
-    load_dotenv()
+    # Nạp .env theo ĐƯỜNG DẪN TUYỆT ĐỐI tại gốc dự án, không phụ thuộc thư mục
+    # làm việc hiện tại. Cần thiết cho PythonAnywhere: WSGI chạy từ thư mục khác
+    # nên load_dotenv() rỗng sẽ KHÔNG tìm thấy .env -> ADMIN_PASSWORD rơi về mặc
+    # định "changeme" -> báo "Wrong password" dù .env ghi "admin".
+    _ENV_PATH = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"
+    )
+    load_dotenv(_ENV_PATH)
 except ImportError:
     pass  # dotenv không bắt buộc; có thể dùng biến môi trường trực tiếp
 

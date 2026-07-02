@@ -105,78 +105,89 @@
   //  - Khóa trục: chỉ trượt ngang khi vuốt ngang rõ ràng; cuộn dọc thì thẻ đứng yên.
   //  - Chạm ra ngoài / cuộn trang -> tự đóng thẻ đang mở.
   (function () {
-    var THRESHOLD = 40;   // px tối thiểu để coi là một cú vuốt ngang
-    var DIR_MIN   = 8;    // px tối thiểu để xác định (khóa) hướng vuốt
+    var OPEN      = 88;        // px: bề rộng nút Delete = độ mở tối đa của thẻ
+    var THRESHOLD = OPEN / 2;  // px: vượt mốc này thì snap-mở, ngược lại snap-đóng
+    var DIR_MIN   = 10;        // px: quãng đường tối thiểu để khóa hướng vuốt
 
-    // Thẻ đang mở duy nhất trên toàn trang.
-    var activeSwipedCard = null;
+    // Thẻ đang mở DUY NHẤT trên toàn trang (exclusive swipe).
+    var active = null;
 
-    function closeActive() {
-      if (activeSwipedCard) {
-        activeSwipedCard.classList.remove('swiped');
-        activeSwipedCard = null;
-      }
+    function close(card) {
+      if (!card) return;
+      card.classList.remove('swiped');
+      card.style.transform = '';       // trả về vị trí 0 (CSS transition lo animation)
+      if (active === card) active = null;
     }
-    function openCard(card) {
-      // Đóng thẻ cũ (nếu khác) trước khi mở thẻ mới -> chỉ 1 thẻ mở.
-      if (activeSwipedCard && activeSwipedCard !== card) {
-        activeSwipedCard.classList.remove('swiped');
-      }
+    function closeActive() { if (active) close(active); }
+    function open(card) {
+      if (active && active !== card) close(active);   // đóng thẻ khác trước -> chỉ 1 thẻ mở
+      card.style.transform = '';        // gỡ transform inline, để class .swiped áp -88px
       card.classList.add('swiped');
-      activeSwipedCard = card;
+      active = card;
     }
 
     document.querySelectorAll('.trade-cards .trade-card').forEach(function (card) {
-      var startX = 0, startY = 0, moved = false, lock = null; // lock: null|'h'|'v'
+      var startX = 0, startY = 0, lock = null;   // lock: null | 'h' | 'v'
+      var dragging = false, baseOpen = false;
 
       card.addEventListener('touchstart', function (e) {
         var t = e.changedTouches[0];
         startX = t.clientX; startY = t.clientY;
-        moved = false; lock = null;
+        lock = null; dragging = false;
+        baseOpen = card.classList.contains('swiped');  // xuất phát từ trạng thái mở?
+        card.style.transition = 'none';   // theo ngón tay -> tắt transition khi kéo
       }, { passive: true });
 
+      // touchmove KHÔNG passive để có quyền preventDefault khi vuốt ngang.
       card.addEventListener('touchmove', function (e) {
         var t = e.changedTouches[0];
         var dx = t.clientX - startX, dy = t.clientY - startY;
         var ax = Math.abs(dx), ay = Math.abs(dy);
 
-        // Khóa hướng ngay khi chuyển động đủ rõ, rồi giữ nguyên cả cử chỉ.
+        // Khóa hướng ngay khi cử chỉ đủ rõ, giữ nguyên đến hết cú vuốt.
         if (lock === null) {
-          if (ax < DIR_MIN && ay < DIR_MIN) return; // chưa rõ hướng
-          lock = (ax > ay) ? 'h' : 'v';
+          if (ax < DIR_MIN && ay < DIR_MIN) return;   // chưa rõ hướng
+          lock = (ay > ax) ? 'v' : 'h';               // dy > dx -> cuộn dọc
         }
-        // Đang cuộn dọc -> KHÔNG động vào thẻ (fix lỗi nhích ngang khi cuộn).
-        if (lock === 'v') { moved = false; return; }
-        // Vuốt ngang rõ ràng.
-        if (ax > 10) moved = true;
-      }, { passive: true });
+        // KHÓA CỨNG trục dọc: cuộn lên/xuống thì thẻ đứng yên tuyệt đối (hết giật nhích).
+        if (lock === 'v') return;
+
+        // Vuốt ngang rõ ràng -> mình sở hữu cử chỉ, chặn cuộn/điều hướng của trình duyệt.
+        e.preventDefault();
+        dragging = true;
+        var x = (baseOpen ? -OPEN : 0) + dx;   // theo ngón tay từ vị trí xuất phát
+        if (x > 0) x = 0;                      // không cho kéo quá bên phải
+        if (x < -OPEN) x = -OPEN;              // không cho kéo quá độ mở
+        card.style.transform = 'translateX(' + x + 'px)';
+      }, { passive: false });
 
       card.addEventListener('touchend', function (e) {
-        if (lock !== 'h') return;      // không phải vuốt ngang -> bỏ qua
+        card.style.transition = '';           // bật lại transition để snap mượt
+        if (lock !== 'h') return;             // không phải vuốt ngang -> bỏ qua
         var dx = e.changedTouches[0].clientX - startX;
-        if (dx < -THRESHOLD) openCard(card);     // vuốt trái -> mở (đóng thẻ khác)
-        else if (dx > THRESHOLD) closeActive();  // vuốt phải -> đóng
+        var x = (baseOpen ? -OPEN : 0) + dx;
+        if (x < -THRESHOLD) open(card); else close(card);   // snap theo mốc THRESHOLD
       }, { passive: true });
 
-      // Chặn điều hướng (mở trang Sửa) khi vừa vuốt, hoặc đóng thẻ nếu đang mở.
+      // Chặn mở trang Sửa khi vừa kéo, hoặc đóng thẻ nếu đang mở.
       card.addEventListener('click', function (e) {
-        if (moved || card.classList.contains('swiped')) {
+        if (dragging || card.classList.contains('swiped')) {
           e.stopImmediatePropagation();
           e.preventDefault();
-          if (!moved) closeActive();   // chạm vào thẻ đang mở -> đóng lại
+          if (!dragging) close(card);         // chạm vào thẻ đang mở -> đóng lại
         }
       }, true);
     });
 
     // Chạm ra ngoài thẻ đang mở -> đóng. (Chạm trong thẻ/nút Delete thì giữ nguyên.)
     document.addEventListener('touchstart', function (e) {
-      if (!activeSwipedCard) return;
-      var wrap = activeSwipedCard.closest('.tc-wrap');
+      if (!active) return;
+      var wrap = active.closest('.tc-wrap');
       if (wrap && wrap.contains(e.target)) return;
       closeActive();
     }, { passive: true });
 
-    // Bắt đầu cuộn trang -> đóng thẻ đang mở. Scroller là #main-content (SPA layout).
+    // Cuộn trang -> đóng thẻ đang mở. Scroller là #main-content (SPA layout).
     var scroller = document.getElementById('main-content');
     if (scroller) scroller.addEventListener('scroll', closeActive, { passive: true });
     window.addEventListener('scroll', closeActive, { passive: true });

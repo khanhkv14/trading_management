@@ -66,14 +66,39 @@ def transactions():
     db = get_db()
     f_ma = request.args.get("ma_cp", "").strip()
     f_loai = request.args.get("loai", "")
-    q, p = "SELECT * FROM transactions WHERE 1=1", []
+
+    # Trang hiện tại (mặc định 1, không cho nhỏ hơn 1).
+    try:
+        page = int(request.args.get("page", 1))
+    except (TypeError, ValueError):
+        page = 1
+    if page < 1:
+        page = 1
+    per_page = 10
+
+    # Mệnh đề WHERE dùng chung cho cả câu đếm và câu lấy dữ liệu.
+    where, p = "WHERE 1=1", []
     if f_ma:
-        q += " AND ma_cp LIKE ?"; p.append(f"%{f_ma}%")
+        where += " AND ma_cp LIKE ?"; p.append(f"%{f_ma}%")
     if f_loai in ("mua", "ban"):
-        q += " AND loai=?"; p.append(f_loai)
-    q += " ORDER BY ngay DESC, id DESC"
-    rows = db.execute(q, p).fetchall()
-    return render_template("transactions.html", rows=rows, f_ma=f_ma, f_loai=f_loai)
+        where += " AND loai=?"; p.append(f_loai)
+
+    # Đếm tổng số dòng theo bộ lọc -> tính tổng số trang.
+    total_rows = db.execute(
+        f"SELECT COUNT(*) FROM transactions {where}", p
+    ).fetchone()[0]
+    total_pages = max(1, (total_rows + per_page - 1) // per_page)
+    if page > total_pages:
+        page = total_pages
+    offset = (page - 1) * per_page
+
+    # Chỉ lấy đúng 1 trang dữ liệu bằng LIMIT/OFFSET.
+    q = f"SELECT * FROM transactions {where} ORDER BY ngay DESC, id DESC LIMIT ? OFFSET ?"
+    rows = db.execute(q, p + [per_page, offset]).fetchall()
+    return render_template(
+        "transactions.html", rows=rows, f_ma=f_ma, f_loai=f_loai,
+        page=page, total_pages=total_pages, total_rows=total_rows,
+    )
 
 
 def _tx_form_vals():

@@ -21,10 +21,19 @@ def login_required(f):
 @auth_bp.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        if request.form.get("password") == current_app.config["ADMIN_PASSWORD"]:
+        # Lấy cả tài khoản + mật khẩu từ form (mặc định username = "admin").
+        username = (request.form.get("username") or "").strip()
+        password = request.form.get("password") or ""
+        admin_pw = current_app.config["ADMIN_PASSWORD"]
+
+        # So sánh trực tiếp chuỗi thô để tránh lệch pha mã hoá khi đồng bộ qua Git:
+        # username == "admin" và password khớp ADMIN_PASSWORD trong .env -> duyệt ngay.
+        if username == "admin" and password == admin_pw:
             session["logged_in"] = True
+            session["username"] = username
             return redirect(url_for("main.dashboard"))
-        flash("Wrong password")
+
+        flash("Sai tài khoản hoặc mật khẩu. Vui lòng thử lại.")
     return render_template("login.html")
 
 

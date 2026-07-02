@@ -6,6 +6,8 @@
 </div>
 
 <form id="filter-form" class="row g-2 mb-3">
+  <!-- Đổi bộ lọc (Ticker/Type) luôn quay về trang 1 để không lạc trang. -->
+  <input type="hidden" name="page" value="1">
   <div class="col-6 col-md"><input class="form-control" name="ma_cp" placeholder="Ticker" value="{{ f_ma }}" autocomplete="off"></div>
   <div class="col-6 col-md"><select name="loai" class="form-select"
       onchange="this.form.requestSubmit();">
@@ -68,6 +70,28 @@
   {% endfor %}
   {% if not rows %}<div class="text-center text-muted py-4">No transactions</div>{% endif %}
 </div>
+
+<!-- Phân trang phía server: chỉ tải 10 dòng/trang. Link giữ nguyên bộ lọc (ma_cp, loai)
+     và mang data-spa để SPA engine fetch nội bộ thay vì reload cả trang. -->
+{% if total_pages > 1 %}
+<nav aria-label="Transactions pagination" class="mt-3">
+  <ul class="pagination justify-content-center mb-0">
+    <li class="page-item {{ 'disabled' if page <= 1 }}">
+      <a class="page-link" data-spa
+         href="{{ url_for('main.transactions', ma_cp=f_ma, loai=f_loai, page=page-1) }}"
+         {{ 'tabindex=-1 aria-disabled=true' if page <= 1 }}>&laquo; Previous</a>
+    </li>
+    <li class="page-item disabled">
+      <span class="page-link">Page {{ page }} / {{ total_pages }}</span>
+    </li>
+    <li class="page-item {{ 'disabled' if page >= total_pages }}">
+      <a class="page-link" data-spa
+         href="{{ url_for('main.transactions', ma_cp=f_ma, loai=f_loai, page=page+1) }}"
+         {{ 'tabindex=-1 aria-disabled=true' if page >= total_pages }}>Next &raquo;</a>
+    </li>
+  </ul>
+</nav>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}

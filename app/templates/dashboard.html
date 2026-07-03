@@ -20,7 +20,9 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
 const AX  = { ticks:{ color:'#64748b' }, grid:{ color:'rgba(148,163,184,.22)' } };
-const BASE = { responsive:true, maintainAspectRatio:false };
+// animation:false -> biểu đồ hiện NGAY, không "bò" ~1s mỗi lần mở tab (hết giật
+// khi chuyển sang Dashboard, đồng thời resize cũng tức thì thay vì chạy animation).
+const BASE = { responsive:true, maintainAspectRatio:false, animation:false };
 
 new Chart(document.getElementById('c1'), {
   type: 'line',

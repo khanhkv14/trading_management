@@ -83,7 +83,9 @@
 <script>
 const AX = { ticks:{ color:'#64748b' }, grid:{ color:'rgba(148,163,184,.22)' } };
 const LEG = { labels:{ color:'#334155' } };
-const BASE = { responsive:true, maintainAspectRatio:false };
+// animation:false -> biểu đồ hiện NGAY, không "bò" ~1s mỗi lần mở tab (hết giật
+// khi chuyển sang Analytics, đồng thời resize cũng tức thì thay vì chạy animation).
+const BASE = { responsive:true, maintainAspectRatio:false, animation:false };
 
 new Chart(document.getElementById('cEquity'), {
   data: {

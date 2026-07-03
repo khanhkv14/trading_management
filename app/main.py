@@ -17,6 +17,27 @@ from app.auth import login_required
 
 main_bp = Blueprint("main", __name__)
 
+# Biên độ HÒA VỐN (VND): phân loại Win/Loss/BE dựa trên PnL THỰC TẾ SAU THUẾ.
+#   WIN  khi pnl_sau_thue >  BE_MARGIN
+#   LOSS khi pnl_sau_thue < -BE_MARGIN
+#   BE   khi -BE_MARGIN <= pnl_sau_thue <= BE_MARGIN
+BE_MARGIN = 200_000
+
+
+def _pnl_net(p):
+    """PnL thực tế SAU THUẾ của một vị thế (đã trừ thuế mọi lệnh con)."""
+    return p.get("pnl_sau_thue") or 0
+
+
+def _classify(p):
+    """Xếp vị thế đã đóng vào 'win' / 'loss' / 'be' theo PnL sau thuế + biên BE."""
+    net = _pnl_net(p)
+    if net > BE_MARGIN:
+        return "win"
+    if net < -BE_MARGIN:
+        return "loss"
+    return "be"
+
 
 # ------------------------- Bộ lọc hiển thị -------------------------
 @main_bp.app_template_filter("fmt")
@@ -213,19 +234,20 @@ def dashboard():
     open_pos = [p for p in pos if p["trang_thai"] == "open"]
 
     total = len(closed)
-    wins = sum(1 for p in closed if (p["pnl"] or 0) > 0)
+    # Win/Win-rate/PnL đều dựa trên PnL THỰC TẾ SAU THUẾ + biên hòa vốn BE.
+    wins = sum(1 for p in closed if _classify(p) == "win")
     win_rate = round(wins / total * 100, 1) if total else 0
-    total_pnl = round(sum((p["pnl"] or 0) for p in closed), 2)
+    total_pnl = round(sum(_pnl_net(p) for p in closed), 2)
 
     labels, cum, running = [], [], 0
     for p in closed:
-        running += (p["pnl"] or 0)
+        running += _pnl_net(p)
         labels.append(vndate(p["ngay_dong"]))
         cum.append(round(running, 2))
 
     by_ma = {}
     for p in closed:
-        by_ma[p["ma_cp"]] = by_ma.get(p["ma_cp"], 0) + (p["pnl"] or 0)
+        by_ma[p["ma_cp"]] = by_ma.get(p["ma_cp"], 0) + _pnl_net(p)
 
     return render_template(
         "dashboard.html",
@@ -240,27 +262,31 @@ def dashboard():
 def _compute_report(closed):
     """Thống kê trên các vị thế ĐÃ ĐÓNG (đã sắp tăng dần theo ngày đóng)."""
     total = len(closed)
-    win_rows = [p for p in closed if (p["pnl"] or 0) > 0]
-    loss_rows = [p for p in closed if (p["pnl"] or 0) < 0]
-    wins, losses, be = len(win_rows), len(loss_rows), total - len(win_rows) - len(loss_rows)
+    # Phân loại theo PnL THỰC TẾ SAU THUẾ (_pnl_net) + biên hòa vốn BE_MARGIN.
+    win_rows = [p for p in closed if _classify(p) == "win"]
+    loss_rows = [p for p in closed if _classify(p) == "loss"]
+    wins, losses = len(win_rows), len(loss_rows)
+    be = total - wins - losses
 
     win_rate = round(wins / total * 100, 1) if total else 0
-    total_pnl = round(sum((p["pnl"] or 0) for p in closed), 2)
+    total_pnl = round(sum(_pnl_net(p) for p in closed), 2)
 
-    sum_win = sum((p["pnl"] or 0) for p in win_rows)
-    sum_loss = sum((p["pnl"] or 0) for p in loss_rows)  # âm
+    sum_win = sum(_pnl_net(p) for p in win_rows)
+    sum_loss = sum(_pnl_net(p) for p in loss_rows)   # âm
+    # Avg Win/Loss chỉ tính trên các lệnh THỰC SỰ Win/Loss sau thuế (bỏ qua BE).
     avg_win = round(sum_win / wins, 2) if wins else 0
     avg_loss = round(abs(sum_loss) / losses, 2) if losses else 0
 
     rr_actual = round(avg_win / avg_loss, 2) if avg_loss else None
     profit_factor = round(sum_win / abs(sum_loss), 2) if sum_loss else None
 
+    # Chuỗi thắng/thua liên tiếp: BE (hòa vốn) làm ĐỨT cả hai chuỗi.
     max_win_streak = max_loss_streak = cur_w = cur_l = 0
     for p in closed:
-        v = p["pnl"] or 0
-        if v > 0:
+        cls = _classify(p)
+        if cls == "win":
             cur_w += 1; cur_l = 0
-        elif v < 0:
+        elif cls == "loss":
             cur_l += 1; cur_w = 0
         else:
             cur_w = cur_l = 0
@@ -272,7 +298,7 @@ def _compute_report(closed):
 
     eq_labels, eq_cum, running = [], [], 0
     for p in closed:
-        running += (p["pnl"] or 0)
+        running += _pnl_net(p)
         eq_labels.append(vndate(p["ngay_dong"]))
         eq_cum.append(round(running, 2))
 
@@ -280,8 +306,8 @@ def _compute_report(closed):
     for p in closed:
         d = g.setdefault(p["ma_cp"], {"n": 0, "win": 0, "pnl": 0})
         d["n"] += 1
-        d["pnl"] += (p["pnl"] or 0)
-        if (p["pnl"] or 0) > 0:
+        d["pnl"] += _pnl_net(p)
+        if _classify(p) == "win":
             d["win"] += 1
     by_pair = sorted(
         [{"ten": k, "n": d["n"], "pnl": round(d["pnl"], 2),
@@ -340,16 +366,37 @@ def report_export_closed_csv():
 
     db = get_db()
 
+    def _fmt_num(x):
+        # Bỏ phần thập phân thừa: 100.0 -> '100', 25.30 -> '25.3'.
+        try:
+            f = float(x)
+        except (TypeError, ValueError):
+            return str(x)
+        return str(int(f)) if f == int(f) else f"{f:g}"
+
     def _notes(tx_ids):
-        # Gộp ghi chú của các giao dịch con thành 1 ô (bỏ ô rỗng, ngăn bằng ' | ').
+        # Liệt kê MỌI giao dịch con của vị thế, mỗi lệnh 1 dòng trong ô Note, kèm
+        # ngữ cảnh để phân biệt lệnh mua/bán, ngày và số tiền tương ứng. Phần chữ
+        # ghi chú chỉ được nối thêm khi giao dịch đó thực sự có ghi chú.
         if not tx_ids:
             return ""
         qmarks = ",".join("?" * len(tx_ids))
         rows = db.execute(
-            f"SELECT ghi_chu FROM transactions WHERE id IN ({qmarks}) "
-            f"ORDER BY ngay, id", list(tx_ids)).fetchall()
-        return " | ".join(r["ghi_chu"].strip() for r in rows
-                          if r["ghi_chu"] and r["ghi_chu"].strip())
+            f"SELECT loai, ngay, so_luong, gia, ghi_chu FROM transactions "
+            f"WHERE id IN ({qmarks}) ORDER BY ngay, id", list(tx_ids)).fetchall()
+        lines = []
+        for r in rows:
+            nhan = "MUA" if (r["loai"] or "").lower() == "mua" else "BÁN"
+            qty = float(r["so_luong"] or 0)
+            price = float(r["gia"] or 0)
+            thanh_tien = round(qty * price, 2)
+            line = (f"[{nhan}] {r['ngay'] or ''} · SL {_fmt_num(qty)} @ "
+                    f"{_fmt_num(price)} = {_fmt_num(thanh_tien)}")
+            note = (r["ghi_chu"] or "").strip()
+            if note:
+                line += f" · {note}"
+            lines.append(line)
+        return "\n".join(lines)
 
     buf = io.StringIO()
     w = csv.writer(buf)

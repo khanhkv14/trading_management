@@ -16,6 +16,9 @@ Quy tắc (mô hình chứng khoán, chỉ Long):
 
 EPS = 1e-9
 
+# Thuế giao dịch: 0.1% trên GIÁ TRỊ của MỖI lệnh khớp (cả mua lẫn bán).
+TAX_RATE = 0.001
+
 
 def _r(x, n=2):
     """Làm tròn an toàn (giữ None)."""
@@ -30,6 +33,7 @@ def _new_pos(ma_cp, seq, ngay_mo):
         "tong_mua": 0.0, "buy_amt": 0.0,     # tổng đã mua + tổng tiền mua
         "tong_ban": 0.0, "sell_amt": 0.0,    # tổng đã bán + tổng tiền bán
         "realized": 0.0, "tx_ids": [],       # lãi/lỗ đã thực hiện + id giao dịch con
+        "tax": 0.0,                          # tổng thuế mọi lệnh con (mua+bán) của vị thế
     }
 
 
@@ -48,6 +52,10 @@ def _finalize(cur, closed):
     else:
         gia_ban_tb = pnl = roi = None
 
+    # PnL THỰC TẾ SAU THUẾ = PnL gộp - tổng thuế mọi lệnh con của vị thế.
+    # Chỉ có ý nghĩa khi vị thế đã đóng (pnl gộp đã xác định).
+    pnl_sau_thue = pnl - cur["tax"] if pnl is not None else None
+
     return {
         "ma_cp": cur["ma_cp"], "seq": cur["seq"],
         "ngay_mo": cur["ngay_mo"], "ngay_dong": cur["ngay_dong"],
@@ -56,6 +64,7 @@ def _finalize(cur, closed):
         "tong_mua": _r(tong_mua, 4), "tong_ban": _r(tong_ban, 4),
         "gia_mua_tb": _r(gia_mua_tb, 2), "gia_ban_tb": _r(gia_ban_tb, 2),
         "pnl": _r(pnl, 2), "roi": _r(roi, 2),
+        "thue": _r(cur["tax"], 2), "pnl_sau_thue": _r(pnl_sau_thue, 2),
         "so_lenh": len(cur["tx_ids"]), "tx_ids": cur["tx_ids"],
     }
 
@@ -85,6 +94,8 @@ def compute_positions(transactions):
                 cur = _new_pos(ma_cp, seq, t["ngay"])
 
             cur["tx_ids"].append(t["id"])
+            # Thuế 0.1% tính trên giá trị của chính lệnh này (áp dụng cả mua & bán).
+            cur["tax"] += qty * price * TAX_RATE
 
             if loai == "mua":
                 cur["held_qty"] += qty

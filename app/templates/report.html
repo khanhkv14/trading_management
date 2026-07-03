@@ -48,6 +48,29 @@
   <div class="card"><div class="stat-label">Max Loss Streak</div><div class="stat loss">{{ max_loss_streak }}</div></div>
   <div class="card"><div class="stat-label">Expectancy / Trade</div>
     <div class="stat {{ 'win' if expectancy>=0 else 'loss' }}">{{ expectancy|fmt }}</div></div>
+  <div class="card"><div class="stat-label">Max Drawdown</div>
+    <div class="stat loss">{{ ('-' ~ (max_drawdown|fmt)) if max_drawdown else 0 }}</div></div>
+</div>
+
+<!-- Best / Worst trades: theo TIỀN MẶT và theo %ROI -->
+{% macro trade_card(title, t, good) %}
+<div class="col-6 col-lg-3"><div class="card p-3 h-100">
+  <div class="stat-label">{{ title }}</div>
+  {% if t %}
+    <div class="stat {{ 'win' if good else 'loss' }}" style="font-size:1.25rem;">{{ t.pnl|fmt }}</div>
+    <div class="small text-muted">{{ t.ma_cp }}
+      · {{ (t.roi|fmt(2)) ~ '%' if t.roi is not none else '—' }}
+      · {{ t.ngay_dong|vndate }}</div>
+  {% else %}
+    <div class="stat">—</div>
+  {% endif %}
+</div></div>
+{% endmacro %}
+<div class="row g-3 mb-3">
+  {{ trade_card('Max Win (Cash)', max_win_cash, True) }}
+  {{ trade_card('Max Loss (Cash)', max_loss_cash, False) }}
+  {{ trade_card('Max Win (%ROI)', max_win_roi, True) }}
+  {{ trade_card('Max Loss (%ROI)', max_loss_roi, False) }}
 </div>
 
 <!-- Charts -->
@@ -60,20 +83,37 @@
     <div class="chart-box"><canvas id="cPair"></canvas></div></div></div>
 </div>
 
-<!-- Ranking by ticker -->
-<div class="card p-3">
-  <b>Ranking by Ticker</b>
-  <div class="table-responsive mt-2"><table class="table table-sm table-dark-soft mb-0">
-    <thead><tr><th>Ticker</th><th class="text-end">Trades</th><th class="text-end">Win Rate</th><th class="text-end">PnL</th></tr></thead>
-    <tbody>
-      {% for x in by_pair %}
-      <tr><td class="fw-semibold">{{ x.ten }}</td><td class="text-end">{{ x.n }}</td>
-        <td class="text-end">{{ x.wr }}%</td>
-        <td class="text-end {{ 'win' if x.pnl>=0 else 'loss' }}">{{ x.pnl|fmt }}</td></tr>
-      {% endfor %}
-      {% if not by_pair %}<tr><td colspan="4" class="text-center text-muted">No data</td></tr>{% endif %}
-    </tbody>
-  </table></div>
+<!-- Ranking: theo Ticker và theo Chiến lược giao dịch (song song) -->
+<div class="row g-3">
+  <div class="col-12 col-lg-6"><div class="card p-3 h-100">
+    <b>Ranking by Ticker</b>
+    <div class="table-responsive mt-2"><table class="table table-sm table-dark-soft mb-0">
+      <thead><tr><th>Ticker</th><th class="text-end">Trades</th><th class="text-end">Win Rate</th><th class="text-end">PnL</th></tr></thead>
+      <tbody>
+        {% for x in by_pair %}
+        <tr><td class="fw-semibold">{{ x.ten }}</td><td class="text-end">{{ x.n }}</td>
+          <td class="text-end">{{ x.wr }}%</td>
+          <td class="text-end {{ 'win' if x.pnl>=0 else 'loss' }}">{{ x.pnl|fmt }}</td></tr>
+        {% endfor %}
+        {% if not by_pair %}<tr><td colspan="4" class="text-center text-muted">No data</td></tr>{% endif %}
+      </tbody>
+    </table></div>
+  </div></div>
+
+  <div class="col-12 col-lg-6"><div class="card p-3 h-100">
+    <b>Ranking by Strategy</b>
+    <div class="table-responsive mt-2"><table class="table table-sm table-dark-soft mb-0">
+      <thead><tr><th>Strategy</th><th class="text-end">Trades</th><th class="text-end">Win Rate</th><th class="text-end">PnL</th></tr></thead>
+      <tbody>
+        {% for x in by_strategy %}
+        <tr><td class="fw-semibold">{{ x.ten }}</td><td class="text-end">{{ x.n }}</td>
+          <td class="text-end">{{ x.wr }}%</td>
+          <td class="text-end {{ 'win' if x.pnl>=0 else 'loss' }}">{{ x.pnl|fmt }}</td></tr>
+        {% endfor %}
+        {% if not by_strategy %}<tr><td colspan="4" class="text-center text-muted">No data</td></tr>{% endif %}
+      </tbody>
+    </table></div>
+  </div></div>
 </div>
 {% endblock %}
 

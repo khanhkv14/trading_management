@@ -26,16 +26,16 @@
   <div class="card-body">
     <div class="table-responsive">
       <table class="table table-hover table-striped table-fixed align-middle w-100">
-        <!-- Phân bổ độ rộng cột: Note chiếm 40% để ưu tiên ghi chú dài. -->
+        <!-- Phân bổ độ rộng cột: thêm Strategy, Note ưu tiên ghi chú dài. -->
         <colgroup>
           <col style="width:8%"><col style="width:8%"><col style="width:6%">
-          <col style="width:9%"><col style="width:10%"><col style="width:15%">
-          <col style="width:40%"><col style="width:4%">
+          <col style="width:9%"><col style="width:9%"><col style="width:13%">
+          <col style="width:12%"><col style="width:31%"><col style="width:4%">
         </colgroup>
         <thead><tr>
           <th>Date</th><th>Ticker</th><th>Type</th>
           <th class="text-end">Qty</th><th class="text-end">Price</th><th class="text-end">Amount</th>
-          <th>Note</th><th></th>
+          <th>Strategy</th><th>Note</th><th></th>
         </tr></thead>
         <tbody>
         {% for r in rows %}
@@ -46,6 +46,7 @@
           <td class="text-end">{{ r['so_luong']|fmt }}</td>
           <td class="text-end">{{ r['gia']|fmt(2) }}</td>
           <td class="text-end">{{ ((r['so_luong'] or 0)*(r['gia'] or 0))|fmt }}</td>
+          <td>{{ r['chien_luoc'] or '—' }}</td>
           <td title="{{ r['ghi_chu'] or '' }}">{{ r['ghi_chu'] or '' }}</td>
           <td class="text-end">
             <a class="row-del" title="Delete" href="{{ url_for('main.tx_delete', tid=r['id']) }}"
@@ -53,7 +54,7 @@
           </td>
         </tr>
         {% endfor %}
-        {% if not rows %}<tr><td colspan="8" class="text-center text-muted py-4">No transactions</td></tr>{% endif %}
+        {% if not rows %}<tr><td colspan="9" class="text-center text-muted py-4">No transactions</td></tr>{% endif %}
         </tbody>
       </table>
     </div>
@@ -76,6 +77,7 @@
         <div>Date: <span>{{ r['ngay']|vndate }}</span></div>
         <div>Qty: <span>{{ r['so_luong']|fmt }}</span></div>
         <div>Price: <span>{{ r['gia']|fmt(2) }}</span></div>
+        <div>Strategy: <span>{{ r['chien_luoc'] or '—' }}</span></div>
       </div>
     </div>
   </div>

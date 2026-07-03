@@ -9,8 +9,10 @@ Quy tắc (mô hình chứng khoán, chỉ Long):
   đang không giữ cổ nào của mã đó).
 - Mọi lệnh Mua tiếp theo khi vị thế còn mở được cộng dồn: cập nhật tổng khối lượng
   và giá mua trung bình bình quân gia quyền = tổng tiền mua / tổng số lượng mua.
-- Lệnh Bán làm giảm khối lượng nắm giữ, tính lãi/lỗ thực hiện theo phần đã bán
-  (giá bán - giá vốn bình quân hiện tại). Khi khối lượng về 0 -> vị thế ĐÓNG.
+- Lệnh Bán làm giảm khối lượng nắm giữ, tính lãi/lỗ thực hiện NGAY theo phần đã
+  bán (giá bán - giá vốn bình quân hiện tại) * số lượng vừa bán. PnL/ROI thực
+  hiện được ghi nhận ngay cả khi vị thế CÒN MỞ (mới bán một phần). Khi khối lượng
+  về 0 -> vị thế ĐÓNG.
 - Sau khi đóng, mua lại cùng mã = một vị thế MỚI, độc lập.
 """
 
@@ -25,6 +27,15 @@ def _r(x, n=2):
     return round(x, n) if x is not None else None
 
 
+def _get(row, key, default=None):
+    """Đọc trường an toàn cho cả dict lẫn sqlite3.Row (thiếu cột -> default)."""
+    try:
+        v = row[key]
+    except (KeyError, IndexError):
+        return default
+    return v if v is not None else default
+
+
 def _new_pos(ma_cp, seq, ngay_mo):
     return {
         "ma_cp": ma_cp, "seq": seq,
@@ -32,28 +43,29 @@ def _new_pos(ma_cp, seq, ngay_mo):
         "held_qty": 0.0, "held_cost": 0.0,   # số giữ + giá vốn (bình quân) đang giữ
         "tong_mua": 0.0, "buy_amt": 0.0,     # tổng đã mua + tổng tiền mua
         "tong_ban": 0.0, "sell_amt": 0.0,    # tổng đã bán + tổng tiền bán
-        "realized": 0.0, "tx_ids": [],       # lãi/lỗ đã thực hiện + id giao dịch con
+        "realized": 0.0, "sold_cost": 0.0,   # lãi/lỗ đã thực hiện + vốn của phần đã bán
+        "tx_ids": [],                        # id các giao dịch con
         "tax": 0.0,                          # tổng thuế mọi lệnh con (mua+bán) của vị thế
+        "chien_luoc": "",                    # chiến lược của vị thế (lấy từ lệnh mở)
     }
 
 
 def _finalize(cur, closed):
     tong_mua, tong_ban = cur["tong_mua"], cur["tong_ban"]
     gia_mua_tb = cur["buy_amt"] / tong_mua if tong_mua else None
+    gia_ban_tb = cur["sell_amt"] / tong_ban if tong_ban else None
 
-    # QUY TẮC: P/L, %ROI và Giá bán TB CHỈ ghi nhận khi vị thế ĐÃ ĐÓNG HOÀN
-    # TOÀN. Vị thế đang mở (kể cả đã bán một phần) để trống các giá trị này.
-    if closed:
-        gia_ban_tb = cur["sell_amt"] / tong_ban if tong_ban else None
-        pnl = cur["realized"] if tong_ban else None
-        # Vốn của phần đã bán = giá mua TB * số lượng đã bán -> mẫu số %ROI.
-        von_ban = gia_mua_tb * tong_ban if (gia_mua_tb and tong_ban) else None
-        roi = pnl / von_ban * 100 if (pnl is not None and von_ban) else None
-    else:
-        gia_ban_tb = pnl = roi = None
+    # P/L và %ROI THỰC HIỆN được ghi nhận NGAY khi phát sinh lệnh bán (kể cả khi
+    # vị thế còn mở vì mới bán một phần). None khi chưa bán gì.
+    #   pnl      = tổng lãi/lỗ đã thực hiện của các phần đã bán
+    #   von_ban  = giá vốn bình quân tại thời điểm bán * số lượng vừa bán (cộng dồn)
+    #   roi      = pnl / von_ban * 100
+    pnl = cur["realized"] if tong_ban else None
+    von_ban = cur["sold_cost"] if tong_ban else None
+    roi = pnl / von_ban * 100 if (pnl is not None and von_ban) else None
 
-    # PnL THỰC TẾ SAU THUẾ = PnL gộp - tổng thuế mọi lệnh con của vị thế.
-    # Chỉ có ý nghĩa khi vị thế đã đóng (pnl gộp đã xác định).
+    # PnL THỰC TẾ SAU THUẾ = PnL gộp (thực hiện) - tổng thuế mọi lệnh con của vị
+    # thế. Thuế 0.1%/lệnh là ước lượng chi phí tự động (không nhập phí thủ công).
     pnl_sau_thue = pnl - cur["tax"] if pnl is not None else None
 
     return {
@@ -65,6 +77,7 @@ def _finalize(cur, closed):
         "gia_mua_tb": _r(gia_mua_tb, 2), "gia_ban_tb": _r(gia_ban_tb, 2),
         "pnl": _r(pnl, 2), "roi": _r(roi, 2),
         "thue": _r(cur["tax"], 2), "pnl_sau_thue": _r(pnl_sau_thue, 2),
+        "chien_luoc": cur["chien_luoc"],
         "so_lenh": len(cur["tx_ids"]), "tx_ids": cur["tx_ids"],
     }
 
@@ -96,6 +109,12 @@ def compute_positions(transactions):
             cur["tx_ids"].append(t["id"])
             # Thuế 0.1% tính trên giá trị của chính lệnh này (áp dụng cả mua & bán).
             cur["tax"] += qty * price * TAX_RATE
+            # Chiến lược của vị thế = chiến lược của lệnh MỞ; nếu lệnh mở bỏ trống
+            # thì lấy chiến lược đầu tiên xuất hiện trong các lệnh con.
+            if not cur["chien_luoc"]:
+                cl = (_get(t, "chien_luoc", "") or "").strip()
+                if cl:
+                    cur["chien_luoc"] = cl
 
             if loai == "mua":
                 cur["held_qty"] += qty
@@ -107,6 +126,7 @@ def compute_positions(transactions):
                     avg = cur["held_cost"] / cur["held_qty"]
                     sold = min(qty, cur["held_qty"])
                     cur["realized"] += (price - avg) * sold
+                    cur["sold_cost"] += avg * sold   # vốn của phần vừa bán (mẫu số ROI)
                     cur["held_cost"] -= avg * sold
                     cur["held_qty"] -= sold
                 cur["tong_ban"] += qty

@@ -25,6 +25,13 @@
       <div class="col-6 col-md-4"><label>Price</label>
         <input class="form-control" name="gia" inputmode="decimal"
                value="{{ r['gia'] or '' }}" required></div>
+      <div class="col-6 col-md-4"><label>Strategy</label>
+        <input class="form-control" name="chien_luoc" value="{{ r['chien_luoc'] or '' }}"
+               placeholder="e.g. Breakout" autocomplete="off" list="strategies-list">
+        {# Gợi ý các chiến lược đã dùng gần đây. #}
+        <datalist id="strategies-list">
+          {% for s in recent_strategies|default([]) %}<option value="{{ s }}"></option>{% endfor %}
+        </datalist></div>
       <div class="col-12"><label>Note</label>
         <textarea class="form-control" name="ghi_chu" rows="3"
                   placeholder="Reason for buy/sell, trade context...">{{ r['ghi_chu'] or '' }}</textarea></div>

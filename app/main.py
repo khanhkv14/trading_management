@@ -133,6 +133,7 @@ def _tx_form_vals():
         loai=request.form.get("loai") if request.form.get("loai") in ("mua", "ban") else "mua",
         so_luong=_num("so_luong"),
         gia=_num("gia"),
+        chien_luoc=(request.form.get("chien_luoc") or "").strip(),
         ghi_chu=(request.form.get("ghi_chu") or "").strip(),
     )
 
@@ -144,21 +145,29 @@ def tx_add():
         v = _tx_form_vals()
         db = get_db()
         db.execute(
-            "INSERT INTO transactions (ngay,ma_cp,loai,so_luong,gia,ghi_chu) "
-            "VALUES (:ngay,:ma_cp,:loai,:so_luong,:gia,:ghi_chu)", v)
+            "INSERT INTO transactions "
+            "(ngay,ma_cp,loai,so_luong,gia,chien_luoc,ghi_chu) VALUES "
+            "(:ngay,:ma_cp,:loai,:so_luong,:gia,:chien_luoc,:ghi_chu)", v)
         db.commit()
         invalidate_positions()
         flash("Transaction added")
         return redirect(url_for("main.transactions"))
     empty = {"ngay": datetime.now().strftime("%Y-%m-%d"), "ma_cp": "",
-             "loai": "mua", "so_luong": "", "gia": "", "ghi_chu": ""}
-    # Gợi ý 5 mã cổ phiếu giao dịch gần đây nhất (theo id giảm dần) cho ô Ticker.
+             "loai": "mua", "so_luong": "", "gia": "", "chien_luoc": "",
+             "ghi_chu": ""}
+    # Gợi ý 5 mã cổ phiếu + 5 chiến lược giao dịch gần đây nhất cho ô nhập liệu.
     db = get_db()
     recent_tickers = [row["ma_cp"] for row in db.execute(
         "SELECT DISTINCT ma_cp FROM transactions ORDER BY id DESC LIMIT 5"
     ).fetchall()]
+    recent_strategies = [row["chien_luoc"] for row in db.execute(
+        "SELECT DISTINCT chien_luoc FROM transactions "
+        "WHERE chien_luoc IS NOT NULL AND chien_luoc != '' "
+        "ORDER BY id DESC LIMIT 5"
+    ).fetchall()]
     return render_template("tx_form.html", title="Add Transaction", r=empty,
-                           recent_tickers=recent_tickers)
+                           recent_tickers=recent_tickers,
+                           recent_strategies=recent_strategies)
 
 
 @main_bp.route("/transactions/edit/<int:tid>", methods=["GET", "POST"])
@@ -169,7 +178,8 @@ def tx_edit(tid):
         v = _tx_form_vals(); v["id"] = tid
         db.execute(
             "UPDATE transactions SET ngay=:ngay,ma_cp=:ma_cp,loai=:loai,"
-            "so_luong=:so_luong,gia=:gia,ghi_chu=:ghi_chu WHERE id=:id", v)
+            "so_luong=:so_luong,gia=:gia,chien_luoc=:chien_luoc,"
+            "ghi_chu=:ghi_chu WHERE id=:id", v)
         db.commit()
         invalidate_positions()
         flash("Transaction updated")
@@ -302,6 +312,36 @@ def _compute_report(closed):
         eq_labels.append(vndate(p["ngay_dong"]))
         eq_cum.append(round(running, 2))
 
+    # --- Max Drawdown: mức sụt giảm lớn nhất từ ĐỈNH của đường Cumulative PnL ---
+    # Duyệt chuỗi lũy kế theo thời gian, giữ đỉnh cao nhất đã gặp; drawdown tại mỗi
+    # điểm = đỉnh - giá trị hiện tại. Max Drawdown là drawdown lớn nhất (>= 0).
+    # Đỉnh khởi đầu = 0 (mốc vốn ban đầu) để cú giảm đầu tiên cũng được tính.
+    peak = max_dd = 0.0
+    for v in eq_cum:
+        if v > peak:
+            peak = v
+        max_dd = max(max_dd, peak - v)
+    max_drawdown = round(max_dd, 2)
+
+    # --- Lệnh thắng lớn nhất / thua lớn nhất theo cả TIỀN MẶT lẫn %ROI ---
+    def _roi_val(p):
+        return p["roi"] if p.get("roi") is not None else 0
+
+    def _card(p):
+        """Gói dữ liệu 1 lệnh để hiển thị thẻ; None khi không có lệnh nào."""
+        if p is None:
+            return None
+        return {"ma_cp": p["ma_cp"], "pnl": round(_pnl_net(p), 2),
+                "roi": p.get("roi"), "ngay_dong": p["ngay_dong"]}
+
+    if closed:
+        max_win_cash = _card(max(closed, key=_pnl_net))
+        max_loss_cash = _card(min(closed, key=_pnl_net))
+        max_win_roi = _card(max(closed, key=_roi_val))
+        max_loss_roi = _card(min(closed, key=_roi_val))
+    else:
+        max_win_cash = max_loss_cash = max_win_roi = max_loss_roi = None
+
     g = {}
     for p in closed:
         d = g.setdefault(p["ma_cp"], {"n": 0, "win": 0, "pnl": 0})
@@ -315,14 +355,33 @@ def _compute_report(closed):
          for k, d in g.items()],
         key=lambda x: -x["pnl"])
 
+    # --- Xếp hạng hiệu suất theo CHIẾN LƯỢC giao dịch (chien_luoc) ---
+    # Vị thế không khai báo chiến lược gom vào nhóm '—' để không bỏ sót dữ liệu.
+    gs = {}
+    for p in closed:
+        key = (p.get("chien_luoc") or "").strip() or "—"
+        d = gs.setdefault(key, {"n": 0, "win": 0, "pnl": 0})
+        d["n"] += 1
+        d["pnl"] += _pnl_net(p)
+        if _classify(p) == "win":
+            d["win"] += 1
+    by_strategy = sorted(
+        [{"ten": k, "n": d["n"], "pnl": round(d["pnl"], 2),
+          "wr": round(d["win"] / d["n"] * 100, 1) if d["n"] else 0}
+         for k, d in gs.items()],
+        key=lambda x: -x["pnl"])
+
     return dict(
         total=total, wins=wins, losses=losses, be=be,
         win_rate=win_rate, total_pnl=total_pnl,
         avg_win=avg_win, avg_loss=avg_loss,
         rr_actual=rr_actual, profit_factor=profit_factor,
         max_win_streak=max_win_streak, max_loss_streak=max_loss_streak,
-        expectancy=expectancy,
-        eq_labels=eq_labels, eq_cum=eq_cum, by_pair=by_pair,
+        expectancy=expectancy, max_drawdown=max_drawdown,
+        max_win_cash=max_win_cash, max_loss_cash=max_loss_cash,
+        max_win_roi=max_win_roi, max_loss_roi=max_loss_roi,
+        eq_labels=eq_labels, eq_cum=eq_cum,
+        by_pair=by_pair, by_strategy=by_strategy,
     )
 
 

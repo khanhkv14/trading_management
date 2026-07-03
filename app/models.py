@@ -20,9 +20,12 @@ SIGNAL_COLUMNS = [
 ]
 # Bảng dữ liệu GỐC của mô hình vị thế: mỗi dòng là 1 lệnh khớp (mua/bán).
 # Vị thế được TÍNH ĐỘNG từ bảng này (xem app/positions.py), không lưu phái sinh.
+#   chien_luoc : tên chiến lược giao dịch (để xếp hạng hiệu suất theo chiến lược)
+# Chi phí được ước lượng tự động qua thuế 0.1% mỗi lệnh (không nhập phí thủ công).
 TRANSACTION_COLUMNS = [
     ("ngay", "TEXT"), ("ma_cp", "TEXT"), ("loai", "TEXT"),
-    ("so_luong", "REAL"), ("gia", "REAL"), ("ghi_chu", "TEXT"),
+    ("so_luong", "REAL"), ("gia", "REAL"),
+    ("chien_luoc", "TEXT"), ("ghi_chu", "TEXT"),
 ]
 
 

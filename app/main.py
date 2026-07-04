@@ -9,11 +9,10 @@ import io
 from datetime import datetime, timedelta
 from flask import (
     Blueprint, request, redirect, url_for, flash, render_template, abort,
-    Response, jsonify
+    Response
 )
 from app.models import get_db
 from app.cache import get_positions, invalidate_positions
-from app.prices import get_prices
 from app.auth import login_required
 
 main_bp = Blueprint("main", __name__)
@@ -240,37 +239,6 @@ def position_detail(ma_cp, seq):
 
 
 # ------------------------- TỔNG QUAN -------------------------
-def _open_live(open_pos, prices):
-    """Ghép giá thị trường vào các vị thế ĐANG MỞ -> lãi/lỗ TẠM TÍNH.
-
-    PnL tạm tính (chưa thực hiện) = (giá hiện tại - giá vốn TB) * số CP đang giữ.
-    Đây là lãi/lỗ GỘP theo giá thị trường (chưa trừ thuế bán ước tính), giúp nhìn
-    nhanh 'đang lãi/lỗ bao nhiêu' nếu chốt ngay bây giờ. Trả về (rows, tổng PnL)."""
-    rows, total = [], 0.0
-    for p in open_pos:
-        qty = p["so_luong_giu"] or 0
-        cost = p["gia_mua_tb"] or 0
-        price = prices.get(p["ma_cp"].upper())
-        if price is not None and qty:
-            pnl = (price - cost) * qty
-            cost_val = cost * qty
-            roi = (pnl / cost_val * 100) if cost_val else None
-            total += pnl
-        else:
-            pnl = roi = None
-        rows.append({
-            "ma_cp": p["ma_cp"], "seq": p["seq"],
-            "so_luong_giu": qty, "gia_mua_tb": cost,
-            "gia_hien_tai": price,
-            "pnl": round(pnl, 2) if pnl is not None else None,
-            "roi": round(roi, 2) if roi is not None else None,
-        })
-    # Sắp xếp: lãi/lỗ lớn nhất (theo trị tuyệt đối) lên trên cho dễ theo dõi.
-    rows.sort(key=lambda r: abs(r["pnl"]) if r["pnl"] is not None else -1,
-              reverse=True)
-    return rows, round(total, 2)
-
-
 @main_bp.route("/")
 @login_required
 def dashboard():
@@ -284,28 +252,22 @@ def dashboard():
     win_rate = round(wins / total * 100, 1) if total else 0
     total_pnl = round(sum(_pnl_net(p) for p in closed), 2)
 
-    # Giá thị trường + lãi/lỗ tạm tính cho các vị thế đang mở (render lần đầu).
-    prices = get_prices([p["ma_cp"] for p in open_pos]) if open_pos else {}
-    live_rows, live_total = _open_live(open_pos, prices)
+    # Vị thế đang mở: server chỉ truyền dữ liệu GỐC (mã, số lượng giữ, giá vốn TB).
+    # GIÁ THỊ TRƯỜNG + lãi/lỗ tạm tính được lấy & tính NGAY TRÊN TRÌNH DUYỆT
+    # (fetch VNDirect) -> chạy được cả trên PythonAnywhere free: whitelist chặn
+    # kết nối RA từ server, KHÔNG chặn trình duyệt người dùng gọi API bên ngoài.
+    open_rows = [{
+        "ma_cp": p["ma_cp"], "seq": p["seq"],
+        "so_luong_giu": p["so_luong_giu"] or 0,
+        "gia_mua_tb": p["gia_mua_tb"] or 0,
+    } for p in open_pos]
+    open_rows.sort(key=lambda r: r["ma_cp"])
 
     return render_template(
         "dashboard.html",
         total=total, win_rate=win_rate, total_pnl=total_pnl,
-        open_count=len(open_pos), live_rows=live_rows, live_total=live_total,
+        open_count=len(open_pos), open_rows=open_rows,
     )
-
-
-@main_bp.route("/api/open-pnl")
-@login_required
-def api_open_pnl():
-    """JSON lãi/lỗ TẠM TÍNH theo giá thị trường cho các vị thế đang mở.
-
-    Dashboard poll endpoint này định kỳ để cập nhật giá & PnL realtime mà không
-    cần tải lại cả trang."""
-    open_pos = [p for p in get_positions() if p["trang_thai"] == "open"]
-    prices = get_prices([p["ma_cp"] for p in open_pos]) if open_pos else {}
-    live_rows, live_total = _open_live(open_pos, prices)
-    return jsonify(rows=live_rows, total=live_total)
 
 
 # ------------------------- BÁO CÁO -------------------------

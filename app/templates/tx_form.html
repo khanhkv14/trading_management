@@ -6,7 +6,9 @@
     <legend>Order Fill</legend>
     <div class="row g-3">
       <div class="col-6 col-md-4"><label>Date</label>
-        <input type="date" id="fld-ngay" class="form-control" name="ngay" value="{{ r['ngay'] or '' }}" required></div>
+        {# lang="vi-VN": hiển thị dd/mm/yyyy (trình duyệt Chromium tôn trọng thuộc tính lang). #}
+        <input type="date" id="fld-ngay" class="form-control" name="ngay" lang="vi-VN"
+               value="{{ r['ngay'] or '' }}" required></div>
       <div class="col-6 col-md-4"><label>Ticker</label>
         <input class="form-control text-uppercase" name="ma_cp" value="{{ r['ma_cp'] or '' }}"
                placeholder="e.g. FPT" autocomplete="off" list="tickers-list" required>
@@ -15,7 +17,7 @@
           {% for t in recent_tickers|default([]) %}<option value="{{ t }}"></option>{% endfor %}
         </datalist></div>
       <div class="col-6 col-md-4"><label>Type</label>
-        <select class="form-select" name="loai">
+        <select class="form-select" id="fld-loai" name="loai">
           <option value="mua" {{ 'selected' if r['loai']=='mua' }}>Buy</option>
           <option value="ban" {{ 'selected' if r['loai']=='ban' }}>Sell</option>
         </select></div>
@@ -25,22 +27,13 @@
       <div class="col-6 col-md-4"><label>Price</label>
         <input class="form-control" name="gia" inputmode="decimal"
                value="{{ r['gia'] or '' }}" required></div>
-      {# 4 chiến lược mặc định + tùy chọn "Khác" để tự nhập. #}
-      {% set strategies = ['Breakout', 'Pullback/Retest', 'Pocket Pivot', 'Climax Bottom'] %}
-      {% set cur_strat = r['chien_luoc'] or '' %}
-      {% set is_custom_strat = cur_strat and cur_strat not in strategies %}
       <div class="col-6 col-md-4"><label>Strategy</label>
-        <select class="form-select" id="fld-chien-luoc" name="chien_luoc">
-          <option value="">-- Chọn --</option>
-          {% for s in strategies %}
-          <option value="{{ s }}" {{ 'selected' if cur_strat == s }}>{{ s }}</option>
-          {% endfor %}
-          <option value="__other__" {{ 'selected' if is_custom_strat }}>Khác (Tự nhập)...</option>
-        </select>
+        {# Danh sách option được JS dựng động theo Type; data-current giữ giá trị cũ khi Sửa. #}
+        <select class="form-select" id="fld-chien-luoc" name="chien_luoc"
+                data-current="{{ r['chien_luoc'] or '' }}"></select>
         {# Ô tự nhập, chỉ hiện khi chọn "Khác". #}
-        <input type="text" class="form-control mt-2 {{ '' if is_custom_strat else 'd-none' }}"
+        <input type="text" class="form-control mt-2 d-none"
                id="fld-chien-luoc-khac" name="chien_luoc_khac"
-               value="{{ cur_strat if is_custom_strat else '' }}"
                placeholder="Nhập chiến lược của riêng bạn..." autocomplete="off"></div>
       <div class="col-12"><label>Note</label>
         <textarea class="form-control" name="ghi_chu" rows="3"
@@ -58,25 +51,75 @@
 
 {% block scripts %}
 <script>
-  // Dự phòng: nếu ô Ngày trống thì tự điền ngày hôm nay (người dùng vẫn sửa được)
+(function () {
+  // ---------- Ô Date ----------
   var _d = document.getElementById('fld-ngay');
-  if (_d && !_d.value) _d.value = new Date().toISOString().slice(0, 10);
+  if (_d) {
+    // Dự phòng: nếu trống thì tự điền ngày hôm nay (người dùng vẫn sửa được).
+    if (!_d.value) _d.value = new Date().toISOString().slice(0, 10);
+    // Bấm/chạm vào bất kỳ đâu trong ô đều mở bảng chọn lịch.
+    _d.addEventListener('click', function () {
+      if (typeof this.showPicker === 'function') {
+        try { this.showPicker(); } catch (e) { /* bỏ qua nếu trình duyệt chặn */ }
+      }
+    });
+  }
 
-  // Chiến lược: hiện ô tự nhập khi chọn "Khác (Tự nhập)...".
-  var _sel = document.getElementById('fld-chien-luoc');
+  // ---------- Chiến lược động theo Loại giao dịch ----------
+  var STRATEGIES = {
+    mua: ['Breakout', 'Pullback/Retest', 'Pocket Pivot', 'Climax Bottom'],
+    ban: ['Selling into Strength', 'Selling into Weakness', 'Stop-Loss']
+  };
+
+  var _loai  = document.getElementById('fld-loai');
+  var _sel   = document.getElementById('fld-chien-luoc');
   var _other = document.getElementById('fld-chien-luoc-khac');
-  function _toggleStrat(focus) {
-    if (!_sel || !_other) return;
-    if (_sel.value === '__other__') {
-      _other.classList.remove('d-none');
-      if (focus) _other.focus();
-    } else {
-      _other.classList.add('d-none');
+
+  // Dựng lại các option theo Type; chọn sẵn `want` (giá trị cần giữ).
+  function renderStrategies(want, customText) {
+    if (!_loai || !_sel) return;
+    var list = STRATEGIES[_loai.value] || [];
+    var inList = list.indexOf(want) !== -1;
+    // "Khác" khi: đang ở sentinel, hoặc giá trị cũ không nằm trong danh sách mặc định.
+    var isOther = (want === '__other__') || (want && !inList);
+
+    var html = '<option value="">-- Chọn --</option>';
+    for (var i = 0; i < list.length; i++) {
+      var s = list[i];
+      html += '<option value="' + s + '"' + (s === want ? ' selected' : '') + '>' + s + '</option>';
+    }
+    html += '<option value="__other__"' + (isOther ? ' selected' : '') + '>Khác (Tự nhập)...</option>';
+    _sel.innerHTML = html;
+
+    if (_other) {
+      if (isOther) {
+        // Giá trị cũ tự nhập (want là chuỗi thật) ưu tiên hơn text đang gõ dở.
+        if (want && want !== '__other__') _other.value = want;
+        else if (customText != null) _other.value = customText;
+        _other.classList.remove('d-none');
+      } else {
+        _other.classList.add('d-none');
+      }
     }
   }
-  if (_sel) {
-    _sel.addEventListener('change', function () { _toggleStrat(true); });
-    _toggleStrat(false);  // đồng bộ trạng thái ban đầu, không cướp focus
+
+  if (_sel && _loai) {
+    // Lần đầu: dựng theo Type + giá trị cũ từ backend (form Sửa / mặc định).
+    renderStrategies(_sel.dataset.current || '', null);
+
+    // Đổi Type: giữ nếu đang tự nhập ("Khác"), còn lại chọn lại từ đầu.
+    _loai.addEventListener('change', function () {
+      if (_sel.value === '__other__') renderStrategies('__other__', _other ? _other.value : '');
+      else renderStrategies('', null);
+    });
+
+    // Chọn tay "Khác" -> hiện ô tự nhập và focus.
+    _sel.addEventListener('change', function () {
+      if (!_other) return;
+      if (_sel.value === '__other__') { _other.classList.remove('d-none'); _other.focus(); }
+      else _other.classList.add('d-none');
+    });
   }
+})();
 </script>
 {% endblock %}

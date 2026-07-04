@@ -127,13 +127,17 @@ def transactions():
 
 
 def _tx_form_vals():
+    # Chiến lược: nếu chọn "Khác (Tự nhập)..." thì lấy giá trị từ ô tự nhập.
+    chien_luoc = (request.form.get("chien_luoc") or "").strip()
+    if chien_luoc == "__other__":
+        chien_luoc = (request.form.get("chien_luoc_khac") or "").strip()
     return dict(
         ngay=(request.form.get("ngay") or "").strip(),
         ma_cp=(request.form.get("ma_cp") or "").strip().upper(),
         loai=request.form.get("loai") if request.form.get("loai") in ("mua", "ban") else "mua",
         so_luong=_num("so_luong"),
         gia=_num("gia"),
-        chien_luoc=(request.form.get("chien_luoc") or "").strip(),
+        chien_luoc=chien_luoc,
         ghi_chu=(request.form.get("ghi_chu") or "").strip(),
     )
 

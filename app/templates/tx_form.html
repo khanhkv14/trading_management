@@ -25,13 +25,23 @@
       <div class="col-6 col-md-4"><label>Price</label>
         <input class="form-control" name="gia" inputmode="decimal"
                value="{{ r['gia'] or '' }}" required></div>
+      {# 4 chiến lược mặc định + tùy chọn "Khác" để tự nhập. #}
+      {% set strategies = ['Breakout', 'Pullback/Retest', 'Pocket Pivot', 'Climax Bottom'] %}
+      {% set cur_strat = r['chien_luoc'] or '' %}
+      {% set is_custom_strat = cur_strat and cur_strat not in strategies %}
       <div class="col-6 col-md-4"><label>Strategy</label>
-        <input class="form-control" name="chien_luoc" value="{{ r['chien_luoc'] or '' }}"
-               placeholder="e.g. Breakout" autocomplete="off" list="strategies-list">
-        {# Gợi ý các chiến lược đã dùng gần đây. #}
-        <datalist id="strategies-list">
-          {% for s in recent_strategies|default([]) %}<option value="{{ s }}"></option>{% endfor %}
-        </datalist></div>
+        <select class="form-select" id="fld-chien-luoc" name="chien_luoc">
+          <option value="">-- Chọn --</option>
+          {% for s in strategies %}
+          <option value="{{ s }}" {{ 'selected' if cur_strat == s }}>{{ s }}</option>
+          {% endfor %}
+          <option value="__other__" {{ 'selected' if is_custom_strat }}>Khác (Tự nhập)...</option>
+        </select>
+        {# Ô tự nhập, chỉ hiện khi chọn "Khác". #}
+        <input type="text" class="form-control mt-2 {{ '' if is_custom_strat else 'd-none' }}"
+               id="fld-chien-luoc-khac" name="chien_luoc_khac"
+               value="{{ cur_strat if is_custom_strat else '' }}"
+               placeholder="Nhập chiến lược của riêng bạn..." autocomplete="off"></div>
       <div class="col-12"><label>Note</label>
         <textarea class="form-control" name="ghi_chu" rows="3"
                   placeholder="Reason for buy/sell, trade context...">{{ r['ghi_chu'] or '' }}</textarea></div>
@@ -51,5 +61,22 @@
   // Dự phòng: nếu ô Ngày trống thì tự điền ngày hôm nay (người dùng vẫn sửa được)
   var _d = document.getElementById('fld-ngay');
   if (_d && !_d.value) _d.value = new Date().toISOString().slice(0, 10);
+
+  // Chiến lược: hiện ô tự nhập khi chọn "Khác (Tự nhập)...".
+  var _sel = document.getElementById('fld-chien-luoc');
+  var _other = document.getElementById('fld-chien-luoc-khac');
+  function _toggleStrat(focus) {
+    if (!_sel || !_other) return;
+    if (_sel.value === '__other__') {
+      _other.classList.remove('d-none');
+      if (focus) _other.focus();
+    } else {
+      _other.classList.add('d-none');
+    }
+  }
+  if (_sel) {
+    _sel.addEventListener('change', function () { _toggleStrat(true); });
+    _toggleStrat(false);  // đồng bộ trạng thái ban đầu, không cướp focus
+  }
 </script>
 {% endblock %}

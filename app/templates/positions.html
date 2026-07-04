@@ -33,7 +33,7 @@
         <tbody>
         {% for p in rows %}
         <tr style="cursor:pointer;"
-            onclick="window.location='{{ url_for('main.position_detail', ma_cp=p.ma_cp, seq=p.seq) }}';">
+            data-spa-href="{{ url_for('main.position_detail', ma_cp=p.ma_cp, seq=p.seq) }}">
           <td class="fw-semibold">{{ p.ma_cp }}</td>
           <td>{{ p.ngay_mo|vndate }}</td>
           {% if f_tt != 'open' %}<td>{{ p.ngay_dong|vndate }}</td>{% endif %}
@@ -57,7 +57,7 @@
 <!-- Mobile: cards -->
 <div class="trade-cards">
   {% for p in rows %}
-  <a class="text-decoration-none text-reset" href="{{ url_for('main.position_detail', ma_cp=p.ma_cp, seq=p.seq) }}">
+  <a class="text-decoration-none text-reset" data-spa href="{{ url_for('main.position_detail', ma_cp=p.ma_cp, seq=p.seq) }}">
   <div class="trade-card">
     <div class="tc-top">
       <div class="tc-sym">{{ p.ma_cp }} {{ tt_badge(p.trang_thai) }}</div>

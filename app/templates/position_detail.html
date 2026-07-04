@@ -32,7 +32,7 @@
       </tr></thead>
       <tbody>
       {% for t in txs %}
-      <tr style="cursor: pointer;" onclick="window.location='{{ url_for('main.tx_edit', tid=t['id']) }}';">
+      <tr style="cursor: pointer;" data-spa-href="{{ url_for('main.tx_edit', tid=t['id']) }}">
         <td>{{ t['ngay']|vndate }}</td>
         <td><span class="badge-dir {{ 'badge-long' if t['loai']=='mua' else 'badge-short' }}">{{ 'Buy' if t['loai']=='mua' else 'Sell' }}</span></td>
         <td class="text-end">{{ t['so_luong']|fmt }}</td>

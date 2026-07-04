@@ -39,7 +39,7 @@
         </tr></thead>
         <tbody>
         {% for r in rows %}
-        <tr style="cursor:pointer;" onclick="window.location='{{ url_for('main.tx_edit', tid=r['id']) }}';">
+        <tr style="cursor:pointer;" data-spa-href="{{ url_for('main.tx_edit', tid=r['id']) }}">
           <td>{{ r['ngay']|vndate }}</td>
           <td class="fw-semibold">{{ r['ma_cp'] }}</td>
           <td>{{ loai_badge(r['loai']) }}</td>
@@ -68,7 +68,7 @@
     <a class="tc-del" href="{{ url_for('main.tx_delete', tid=r['id']) }}"
        onclick="return confirm('Delete this transaction?');">Delete</a>
     <div class="trade-card" style="cursor: pointer;"
-         onclick="window.location='{{ url_for('main.tx_edit', tid=r['id']) }}';">
+         data-spa-href="{{ url_for('main.tx_edit', tid=r['id']) }}">
       <div class="tc-top">
         <div class="tc-sym">{{ r['ma_cp'] }} {{ loai_badge(r['loai']) }}</div>
         <div class="tc-pnl">{{ ((r['so_luong'] or 0)*(r['gia'] or 0))|fmt }}</div>

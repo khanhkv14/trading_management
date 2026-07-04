@@ -225,13 +225,25 @@
   // ---- Listener của ENGINE: đăng ký MỘT LẦN lúc init (bindingView=false,
   //      nên KHÔNG dính signal, KHÔNG bao giờ bị gỡ) ----------------------
 
-  // Bấm link có data-spa -> điều hướng SPA.
+  // Bấm <a data-spa> HOẶC phần tử có data-spa-href (dòng bảng / thẻ) -> SPA.
+  // Trước đây các dòng dùng onclick="window.location=..." -> RELOAD CẢ TRANG mỗi
+  // lần vào Sửa/Chi tiết (chớp trắng, tải lại CSS CDN, chạy lại engine) trong khi
+  // menu lại chạy SPA mượt -> cảm giác "giật, không đồng nhất". Nay mọi điều hướng
+  // XEM đều đi qua cùng một đường SPA.
   document.addEventListener('click', function (e) {
-    var a = e.target.closest && e.target.closest('a[data-spa]');
-    if (!a) return;
-    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return;  // mở tab mới
-    e.preventDefault();
-    loadInto(a.getAttribute('href'), true);
+    if (!e.target.closest) return;
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return;  // để trình duyệt mở tab mới
+
+    var a = e.target.closest('a[data-spa]');
+    if (a) { e.preventDefault(); loadInto(a.getAttribute('href'), true); return; }
+
+    // Dòng/thẻ điều hướng qua data-spa-href. Nếu click rơi trúng <a>/<button> con
+    // (vd nút Xóa) thì để phần tử đó tự xử lý, không cho dòng "nuốt" cú click.
+    var row = e.target.closest('[data-spa-href]');
+    if (row && !e.target.closest('a, button')) {
+      e.preventDefault();
+      loadInto(row.getAttribute('data-spa-href'), true);
+    }
   });
 
   // Filter form (auto-submit): chặn submit -> nạp SPA theo query string.

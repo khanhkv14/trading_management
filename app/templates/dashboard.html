@@ -9,14 +9,14 @@
     <div id="live-total" class="stat">—</div></div></div>
 </div>
 
-<div id="open-live">
+<!-- Dữ liệu gốc các vị thế mở nhúng vào THUỘC TÍNH data- (KHÔNG dùng thẻ <script>):
+     trình nạp SPA gỡ mọi <script> khỏi nội dung để chạy tay -> nếu để trong <script>
+     thì khi quay lại tab qua SPA dữ liệu sẽ mất. Thuộc tính trên <div> thì sống sót. -->
+<div id="open-live" data-positions='{{ open_rows|tojson }}'>
   <div class="view-header d-flex align-items-center justify-content-between" style="border:0;padding:0;margin-bottom:.5rem;">
     <b>Open Positions — Live PnL</b>
     <span class="text-muted" style="font-size:.8rem;">Nguồn giá: VNDirect · <span id="live-updated">đang tải…</span></span>
   </div>
-
-  <!-- Dữ liệu gốc các vị thế mở (server render 1 lần); JS đọc để fetch giá + tính PnL. -->
-  <script type="application/json" id="open-data">{{ open_rows|tojson }}</script>
 
   <!-- Desktop: bảng -->
   <div class="trade-table card shadow-sm data-card mb-3">
@@ -80,16 +80,16 @@
    Chạy trong khung SPA: dọn interval qua window.SPA.onCleanup khi rời Dashboard. */
 (function () {
   var box = document.getElementById('open-live');
-  var dataEl = document.getElementById('open-data');
-  if (!box || !dataEl) return;
+  if (!box) return;
 
   var positions;
-  try { positions = JSON.parse(dataEl.textContent) || []; } catch (e) { positions = []; }
+  try { positions = JSON.parse(box.getAttribute('data-positions')) || []; } catch (e) { positions = []; }
   if (!positions.length) return;
 
   // Danh sách mã DUY NHẤT (nhiều vị thế cùng mã -> chỉ fetch 1 lần).
-  var symbols = Array.prototype.slice.call(
-    new Set(positions.map(function (p) { return p.ma_cp; })));
+  // Dùng Array.from: Set là iterable nhưng KHÔNG array-like (không có .length),
+  // nên Array.prototype.slice.call(set) sẽ ra MẢNG RỖNG -> phải Array.from.
+  var symbols = Array.from(new Set(positions.map(function (p) { return p.ma_cp; })));
 
   // Định dạng số kiểu Việt Nam: nghìn '.', thập phân ','. Rỗng -> '—'.
   function fmtVN(n, dec) {

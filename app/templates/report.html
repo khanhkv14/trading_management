@@ -80,24 +80,42 @@
     <div class="chart-box"><canvas id="cEquity"></canvas></div></div></div>
 </div>
 
-<!-- Ranking: theo Ticker và theo Chiến lược giao dịch (song song) -->
-<div class="row g-3">
+<!-- Ranking theo Ticker: tách Top lời nhất / Top lỗ nhất (mỗi bảng tối đa 10 mã) -->
+<div class="row g-3 mb-3">
   <div class="col-12 col-lg-6"><div class="card p-3 h-100">
-    <b>Ranking by Ticker</b>
+    <b>Top 10 Gainers</b>
     <div class="table-responsive mt-2"><table class="table table-sm table-dark-soft mb-0">
       <thead><tr><th>Ticker</th><th class="text-end">Trades</th><th class="text-end">Win Rate</th><th class="text-end">PnL</th></tr></thead>
       <tbody>
-        {% for x in by_pair %}
+        {% for x in by_pair_top %}
         <tr><td class="fw-semibold">{{ x.ten }}</td><td class="text-end">{{ x.n }}</td>
           <td class="text-end">{{ x.wr }}%</td>
-          <td class="text-end {{ 'win' if x.pnl>=0 else 'loss' }}">{{ x.pnl|fmt }}</td></tr>
+          <td class="text-end win">{{ x.pnl|fmt }}</td></tr>
         {% endfor %}
-        {% if not by_pair %}<tr><td colspan="4" class="text-center text-muted">No data</td></tr>{% endif %}
+        {% if not by_pair_top %}<tr><td colspan="4" class="text-center text-muted">No data</td></tr>{% endif %}
       </tbody>
     </table></div>
   </div></div>
 
   <div class="col-12 col-lg-6"><div class="card p-3 h-100">
+    <b>Top 10 Losers</b>
+    <div class="table-responsive mt-2"><table class="table table-sm table-dark-soft mb-0">
+      <thead><tr><th>Ticker</th><th class="text-end">Trades</th><th class="text-end">Win Rate</th><th class="text-end">PnL</th></tr></thead>
+      <tbody>
+        {% for x in by_pair_bottom %}
+        <tr><td class="fw-semibold">{{ x.ten }}</td><td class="text-end">{{ x.n }}</td>
+          <td class="text-end">{{ x.wr }}%</td>
+          <td class="text-end loss">{{ x.pnl|fmt }}</td></tr>
+        {% endfor %}
+        {% if not by_pair_bottom %}<tr><td colspan="4" class="text-center text-muted">No data</td></tr>{% endif %}
+      </tbody>
+    </table></div>
+  </div></div>
+</div>
+
+<!-- Ranking theo Chiến lược giao dịch -->
+<div class="row g-3">
+  <div class="col-12"><div class="card p-3 h-100">
     <b>Ranking by Strategy</b>
     <div class="table-responsive mt-2"><table class="table table-sm table-dark-soft mb-0">
       <thead><tr><th>Strategy</th><th class="text-end">Trades</th><th class="text-end">Win Rate</th><th class="text-end">PnL</th></tr></thead>

@@ -356,6 +356,11 @@ def _compute_report(closed):
           "wr": round(d["win"] / d["n"] * 100, 1) if d["n"] else 0}
          for k, d in g.items()],
         key=lambda x: -x["pnl"])
+    # Tách 2 bảng để dễ soi mã lời/lỗ nhiều nhất và tránh render cả trăm dòng
+    # khi danh mục phình to (nhiều năm giao dịch có thể lên tới hàng trăm mã).
+    # by_pair đã sắp giảm dần theo pnl: đầu danh sách = lời nhất, cuối = lỗ nhất.
+    by_pair_top = [x for x in by_pair if x["pnl"] > 0][:10]
+    by_pair_bottom = [x for x in reversed(by_pair) if x["pnl"] < 0][:10]
 
     # --- Xếp hạng hiệu suất theo CHIẾN LƯỢC giao dịch (chien_luoc) ---
     # Vị thế không khai báo chiến lược gom vào nhóm '—' để không bỏ sót dữ liệu.
@@ -384,6 +389,7 @@ def _compute_report(closed):
         max_win_roi=max_win_roi, max_loss_roi=max_loss_roi,
         eq_labels=eq_labels, eq_cum=eq_cum,
         by_pair=by_pair, by_strategy=by_strategy,
+        by_pair_top=by_pair_top, by_pair_bottom=by_pair_bottom,
     )
 
 

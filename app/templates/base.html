@@ -171,54 +171,66 @@
     updateHeaderShadow();                  // reset chỉ báo cuộn cho header mới (scrollTop=0)
   }
 
-  /* ---- Cache view phía client (chuyển tab tức thì) ---------------------
-     Trên shared host (PythonAnywhere), chi phí lớn nhất khi đổi tab là
-     round-trip mạng. Lưu lại HTML từng URL đã tải; lần sau bấm lại cùng tab
-     trong TTL thì render thẳng từ bộ nhớ, KHÔNG chạm server. Mutation (thêm/
-     sửa/xóa giao dịch) đi qua POST -> reload cả trang -> cache (nằm trong
-     closure) tự sạch, nên không có nguy cơ hiển thị dữ liệu cũ. TTL ngắn là
-     lưới an toàn phụ. */
-  var viewCache = new Map();
-  var CACHE_TTL = 30000;                    // ms
+  /* ---- Cache view + PREFETCH (chuyển tab TỨC THÌ) ----------------------
+     Chi phí lớn nhất khi đổi tab trên shared host là round-trip mạng. Hai
+     cải tiến chống "chậm/giật khi chuyển chức năng":
+     (1) PREFETCH: rê chuột / chạm vào menu -> tải trước view vào cache TRƯỚC
+         khi người dùng bấm. Tới lúc bấm thật, HTML đã sẵn -> render tức thì,
+         không còn khoảng chờ trắng.
+     (2) TTL DÀI (5') an toàn: trong một phiên SPA, dữ liệu chỉ đổi qua POST
+         (thêm/sửa/xóa) mà POST luôn reload CẢ trang -> xóa sạch cache trong
+         closure. Nên khi CHƯA reload, view không bao giờ "cũ". */
+  var viewCache = new Map();      // url -> { t, html }
+  var inflight  = new Map();      // url -> Promise<html> (gộp prefetch + click trùng)
+  var CACHE_TTL = 300000;         // 5 phút
 
-  /* ---- (C) Fetch nguyên tử ---------------------------------------------
-     Bỏ khoá 'if (loading) return' (nó nuốt điều hướng khi đang tải, làm
-     bộ lọc lệch input). Thay bằng: điều hướng mới ABORT request cũ, chỉ
-     phản hồi mới nhất được ghi vào DOM. */
-  var fetchCtrl = null;
+  function fresh(url) {
+    var hit = viewCache.get(url);
+    return (hit && (Date.now() - hit.t) < CACHE_TTL) ? hit.html : null;
+  }
+
+  // Tải HTML một view (gộp request trùng nhau). Trả Promise<html>, tự lưu cache.
+  function fetchView(url) {
+    if (inflight.has(url)) return inflight.get(url);
+    var p = fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(function (res) { if (!res.ok) throw new Error(res.status); return res.text(); })
+      .then(function (html) { viewCache.set(url, { t: Date.now(), html: html }); inflight.delete(url); return html; })
+      .catch(function (e) { inflight.delete(url); throw e; });
+    inflight.set(url, p);
+    return p;
+  }
+
+  // Tải trước (speculative) khi rê/chạm menu — lỗi thì im lặng.
+  function prefetch(url) {
+    if (!url || fresh(url) || inflight.has(url)) return;
+    fetchView(url).catch(function () {});
+  }
+
+  /* ---- Điều hướng SPA nguyên tử ----------------------------------------
+     Chỉ phản hồi MỚI NHẤT được áp vào DOM: mỗi lần điều hướng tăng navToken;
+     kết quả về mà token đã đổi thì bỏ (không cần abort — để prefetch/điều
+     hướng bị bỏ vẫn kịp lưu cache dùng lại). Chỉ báo 'loading' HIỆN TRỄ 120ms
+     nên phản hồi nhanh / lấy từ cache KHÔNG chớp mờ -> hết cảm giác giật. */
+  var navToken = 0;
 
   async function loadInto(url, push) {
-    var hit = viewCache.get(url);
-    if (hit && (Date.now() - hit.t) < CACHE_TTL) {   // cache còn tươi -> render tức thì
-      if (fetchCtrl) { try { fetchCtrl.abort(); } catch (e) {} fetchCtrl = null; }
-      main.classList.remove('loading');
-      await applyHTML(hit.html, url, push);
-      return;
-    }
+    var myToken = ++navToken;
 
-    if (fetchCtrl) { try { fetchCtrl.abort(); } catch (e) {} }  // hủy request cũ còn treo
-    var myCtrl = fetchCtrl = HAS_AC ? new AbortController() : null;
-    main.classList.add('loading');
+    var cached = fresh(url);
+    if (cached != null) { await applyHTML(cached, url, push); return; }
+
+    var dim = setTimeout(function () {
+      if (myToken === navToken) main.classList.add('loading');
+    }, 120);
     try {
-      var res = await fetch(url, {
-        headers: { 'X-Requested-With': 'XMLHttpRequest' },
-        signal: myCtrl ? myCtrl.signal : undefined
-      });
-      if (!res.ok) throw new Error(res.status);
-      var html = await res.text();
-      if (myCtrl !== fetchCtrl) return;    // đã bị request mới thay -> bỏ qua kết quả cũ
-
-      viewCache.set(url, { t: Date.now(), html: html });
+      var html = await fetchView(url);
+      if (myToken !== navToken) return;    // đã bị điều hướng mới thay -> bỏ kết quả cũ
       await applyHTML(html, url, push);
     } catch (e) {
-      if (e && e.name === 'AbortError') return;   // bị điều hướng mới thay -> im lặng
-      window.location.href = url;          // lỗi mạng -> quay về điều hướng thường
-      return;
+      if (myToken === navToken) window.location.href = url;   // lỗi mạng -> điều hướng thường
     } finally {
-      if (myCtrl === fetchCtrl) {          // chỉ request mới nhất mới được dọn cờ
-        fetchCtrl = null;
-        main.classList.remove('loading');
-      }
+      clearTimeout(dim);
+      if (myToken === navToken) main.classList.remove('loading');
     }
   }
 
@@ -245,6 +257,19 @@
       loadInto(row.getAttribute('data-spa-href'), true);
     }
   });
+
+  // PREFETCH: rê chuột (desktop) / chạm (mobile) vào link SPA -> tải trước view
+  // vào cache. prefetch() tự bỏ qua nếu đã có cache hoặc đang tải -> gọi thoải
+  // mái. Nhờ đó cú BẤM sau đó gần như tức thì (HTML đã sẵn trong bộ nhớ).
+  function prefetchFromEvent(e) {
+    if (!e.target.closest) return;
+    var a = e.target.closest('a[data-spa]');
+    if (a) { prefetch(a.getAttribute('href')); return; }
+    var row = e.target.closest('[data-spa-href]');
+    if (row) prefetch(row.getAttribute('data-spa-href'));
+  }
+  document.addEventListener('pointerover', prefetchFromEvent, { passive: true });
+  document.addEventListener('touchstart', prefetchFromEvent, { passive: true });
 
   // Filter form (auto-submit): chặn submit -> nạp SPA theo query string.
   document.addEventListener('submit', function (e) {
@@ -289,8 +314,16 @@
     var vh = main.querySelector('.view-header');
     if (vh) vh.classList.toggle('scrolled', contentScrollTop() > 5);
   }
-  main.addEventListener('scroll', updateHeaderShadow, { passive: true });
-  window.addEventListener('scroll', updateHeaderShadow, { passive: true });
+  /* Gộp về tối đa MỘT lần/khung hình (rAF): tránh chạy querySelector + đọc
+     scrollTop (ép reflow) trên MỖI sự kiện scroll -> cuộn mượt, không giật. */
+  var shadowScheduled = false;
+  function scheduleHeaderShadow() {
+    if (shadowScheduled) return;
+    shadowScheduled = true;
+    requestAnimationFrame(function () { shadowScheduled = false; updateHeaderShadow(); });
+  }
+  main.addEventListener('scroll', scheduleHeaderShadow, { passive: true });
+  window.addEventListener('scroll', scheduleHeaderShadow, { passive: true });
 
   // Trạng thái ban đầu cho nút Back.
   history.replaceState({ url: location.pathname + location.search }, '', location.href);

@@ -102,15 +102,22 @@
   }
   function setCls(el, ok) { el.classList.toggle('win', ok); el.classList.toggle('loss', !ok); }
 
+  // ---- Bộ nhớ giá tạm (sessionStorage): mở lại Dashboard HIỆN NGAY giá cũ,
+  //      không chờ mạng và không nã lại API khi vừa chuyển tab qua lại. ----
+  var PX_KEY = 'live_px_v1';
+  function loadCache() { try { return JSON.parse(sessionStorage.getItem(PX_KEY)); } catch (e) { return null; } }
+  function saveCache(map) { try { sessionStorage.setItem(PX_KEY, JSON.stringify(map)); } catch (e) {} }
+
   // Lấy giá 1 mã từ VNDirect: nến ngày ~20 phiên gần nhất -> lấy giá đóng cửa
   // (khi đang giao dịch, nến hôm nay = giá khớp hiện tại). Giá đơn vị NGHÌN đồng
   // nên nhân 1000 để về VND, cùng thang với giá vốn trong DB. Lỗi -> null.
-  function fetchPrice(sym) {
+  // `signal` để hủy khi rời trang hoặc quá hạn (chống nghẽn pool 6 kết nối/host).
+  function fetchPrice(sym, signal) {
     var to = Math.floor(Date.now() / 1000);
     var from = to - 20 * 86400;
     var url = 'https://dchart-api.vndirect.com.vn/dchart/history?symbol=' +
       encodeURIComponent(sym) + '&resolution=D&from=' + from + '&to=' + to;
-    return fetch(url)
+    return fetch(url, { signal: signal })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (d) {
         if (d && d.s === 'ok' && d.c && d.c.length) return d.c[d.c.length - 1] * 1000;
@@ -149,18 +156,37 @@
                                      : 'không lấy được giá';
   }
 
+  // Giá đã biết gần nhất: mã nào lần này KHÔNG lấy được (mạng lỗi/timeout) thì
+  // GIỮ giá cũ thay vì xóa về '—' -> màn hình không nhấp nháy khi mạng chập chờn.
+  var lastMap = loadCache() || {};
+  if (Object.keys(lastMap).length) render(lastMap);   // hiện ngay giá đã lưu
+
+  var polling = false;      // chống chồng nhịp: bỏ qua nếu nhịp trước chưa xong
+  var pollCtrl = null;      // AbortController của nhịp đang chạy
+
   function poll() {
-    if (document.hidden) return;             // ẩn tab -> khỏi gọi mạng
-    Promise.all(symbols.map(fetchPrice)).then(function (prices) {
-      var map = {};
-      symbols.forEach(function (s, i) { map[s] = prices[i]; });
-      render(map);
+    if (document.hidden || polling) return;  // ẩn tab / đang chạy dở -> bỏ nhịp
+    polling = true;
+    pollCtrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    var sig = pollCtrl ? pollCtrl.signal : undefined;
+    // Hết giờ 8s: hủy mọi request còn treo để không nghẽn pool kết nối trình duyệt.
+    var killer = setTimeout(function () { if (pollCtrl) try { pollCtrl.abort(); } catch (e) {} }, 8000);
+    Promise.all(symbols.map(function (s) { return fetchPrice(s, sig); })).then(function (prices) {
+      clearTimeout(killer);
+      polling = false;
+      var got = false;
+      symbols.forEach(function (s, i) { if (prices[i] != null) { lastMap[s] = prices[i]; got = true; } });
+      render(lastMap);
+      if (got) saveCache(lastMap);
     });
   }
 
   var timer = setInterval(poll, 15000);      // 15s/lần
   if (window.SPA && window.SPA.onCleanup) {
-    window.SPA.onCleanup(function () { clearInterval(timer); });
+    window.SPA.onCleanup(function () {
+      clearInterval(timer);
+      if (pollCtrl) try { pollCtrl.abort(); } catch (e) {}   // hủy request treo khi rời trang
+    });
   }
   poll();                                     // lấy giá ngay khi mở trang
 })();

@@ -126,6 +126,14 @@ def transactions():
     )
 
 
+def _safe_next(target):
+    """Chỉ cho phép redirect tới đường dẫn nội bộ (bắt đầu bằng "/" nhưng không
+    phải "//" — chặn open-redirect sang tên miền ngoài). Trả None nếu không hợp lệ."""
+    if target and target.startswith("/") and not target.startswith("//"):
+        return target
+    return None
+
+
 def _tx_form_vals():
     # Chiến lược: nếu chọn "Khác (Tự nhập)..." thì lấy giá trị từ ô tự nhập.
     chien_luoc = (request.form.get("chien_luoc") or "").strip()
@@ -178,6 +186,9 @@ def tx_add():
 @login_required
 def tx_edit(tid):
     db = get_db()
+    # `next`: nơi quay lại sau khi lưu (vd: trang chi tiết vị thế). Chỉ chấp nhận
+    # đường dẫn nội bộ để tránh open-redirect; mặc định về danh sách giao dịch.
+    nxt = _safe_next(request.args.get("next"))
     if request.method == "POST":
         v = _tx_form_vals(); v["id"] = tid
         db.execute(
@@ -187,11 +198,12 @@ def tx_edit(tid):
         db.commit()
         invalidate_positions()
         flash("Transaction updated")
-        return redirect(url_for("main.transactions"))
+        return redirect(nxt or url_for("main.transactions"))
     r = db.execute("SELECT * FROM transactions WHERE id=?", (tid,)).fetchone()
     if r is None:
         abort(404)
-    return render_template("tx_form.html", title="Edit Transaction", r=r)
+    return render_template("tx_form.html", title="Edit Transaction", r=r,
+                           next_url=nxt)
 
 
 @main_bp.route("/transactions/delete/<int:tid>")

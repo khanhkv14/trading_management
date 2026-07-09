@@ -4,15 +4,15 @@
 Phần LÕI (lấy nguồn + upsert) nằm ở app/flows_ingest.py để dùng chung với nút
 "Cập nhật" trên giao diện. File này chỉ là lớp vỏ dòng lệnh + đặt lịch.
 
+Nguồn: API khối ngoại VNDirect (số THẬT). Cần INTERNET nên chạy ở máy có mạng.
+Trên PythonAnywhere free (chặn kết nối ra) hãy dùng nút "Update" trên web — nút đó
+để TRÌNH DUYỆT gọi VNDirect rồi POST về, không cần server ra internet.
+
 Cách dùng:
-    python scripts/fetch_market_flows.py                 # hôm nay
+    python scripts/fetch_market_flows.py                 # hôm nay (số thật)
     python scripts/fetch_market_flows.py 2026-07-09       # một ngày
     python scripts/fetch_market_flows.py 2026-06-01 2026-07-09   # khoảng ngày
-    python scripts/fetch_market_flows.py --mock 2026-07-09       # ép giả lập
-
-Lưu ý: trên PythonAnywhere free, kết nối internet RA bị chặn -> hãy chạy CLI này
-ở máy có mạng, hoặc dùng nút "Cập nhật" trên web (chạy bằng dữ liệu giả lập,
-không cần internet nên hoạt động cả trên PA free).
+    python scripts/fetch_market_flows.py --mock 2026-07-09       # dữ liệu GIẢ LẬP (test)
 """
 import argparse
 import logging
@@ -70,7 +70,8 @@ def main(argv=None):
     con.row_factory = sqlite3.Row
     try:
         # commit_each_day=True: lỗi giữa chừng vẫn giữ phần ngày đã nạp.
-        res = ingest_range(con, start, end, force_mock=args.mock, commit_each_day=True)
+        source = "mock" if args.mock else "real"
+        res = ingest_range(con, start, end, source=source, commit_each_day=True)
     finally:
         con.close()
 

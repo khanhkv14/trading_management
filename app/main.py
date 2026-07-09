@@ -16,7 +16,7 @@ from app.models import get_db
 from app.cache import get_positions, invalidate_positions
 from app.auth import login_required
 from app.market_flows import aggregate, iso_week_of, month_of, InvalidPeriod
-from app.flows_ingest import ingest_range
+from app.flows_ingest import normalize_rows, upsert
 
 log = logging.getLogger(__name__)
 
@@ -295,7 +295,7 @@ def dashboard():
         "dashboard.html",
         total=total, win_rate=win_rate, total_pnl=total_pnl,
         open_count=len(open_pos), open_rows=open_rows,
-        flow=flow, flow_week=flow_week,
+        flow=flow, flow_week=flow_week, flow_start=_flow_update_start(get_db()),
     )
 
 
@@ -375,45 +375,46 @@ def market_flows():
         "market_flows.html", khoi=khoi,
         default_week=default_week, default_month=default_month,
         week_data=week_data, month_data=month_data,
+        flow_start=_flow_update_start(db),
     )
 
 
-@main_bp.route("/market-flows/update", methods=["POST"])
-@login_required
-def market_flows_update():
-    """Nút "Cập nhật": nạp dữ liệu mới tới HÔM NAY rồi quay lại trang trước.
-
-    Khoảng nạp: từ ngày MỚI NHẤT đã có trong DB tới hôm nay (nạp lại ngày mới nhất
-    để làm tươi số cuối phiên). DB trống -> lùi về đầu THÁNG TRƯỚC để một cú bấm
-    lấp đủ tháng trước + tháng này (vd bấm trong tháng 7 sẽ có cả tháng 6 & 7).
-
-    Chạy bằng bộ giả lập không cần internet -> hoạt động cả trên PythonAnywhere
-    free. UPSERT theo (ma_cp, ngay) nên bấm nhiều lần vẫn an toàn, không trùng."""
-    db = get_db()
+def _flow_update_start(db):
+    """Ngày bắt đầu cho nút Update: từ ngày MỚI NHẤT đã có trong DB (nạp lại ngày
+    đó để làm tươi số cuối phiên). DB trống -> lùi về đầu THÁNG TRƯỚC để một lần
+    bấm lấp đủ tháng trước + tháng này. Trả chuỗi 'YYYY-MM-DD'."""
     today = datetime.now().date()
     row = db.execute("SELECT MAX(ngay) AS m FROM market_flows").fetchone()
-    last = row["m"] if row else None
+    last = row["m"] if row and row["m"] else None
     if last:
-        try:
-            start = datetime.strptime(last[:10], "%Y-%m-%d").date()
-        except ValueError:
-            start = today.replace(day=1)
-    else:
-        # DB trống: lùi về ngày 1 của tháng trước.
-        first_this = today.replace(day=1)
-        start = (first_this - timedelta(days=1)).replace(day=1)
+        return str(last)[:10]
+    first_this = today.replace(day=1)
+    return (first_this - timedelta(days=1)).replace(day=1).isoformat()
 
+
+@main_bp.route("/market-flows/ingest", methods=["POST"])
+@login_required
+def market_flows_ingest():
+    """Nhận dữ liệu khối ngoại do TRÌNH DUYỆT fetch từ VNDirect rồi POST về (JSON
+    {"rows": [...]}) và upsert vào DB.
+
+    Vì sao client fetch rồi POST: PythonAnywhere free chặn server ra internet nhưng
+    KHÔNG chặn trình duyệt. VNDirect (api-finfo) trả CORS '*' nên trình duyệt gọi
+    trực tiếp được -> nút Update chạy cả trên PA free. Server chỉ việc lưu số nhận
+    được (UPSERT theo (ma_cp, ngay), không tạo trùng)."""
+    payload = request.get_json(silent=True) or {}
+    rows = normalize_rows(payload.get("rows"))
+    if not rows:
+        return jsonify({"ok": False, "error": "No valid rows"}), 400
+    db = get_db()
     try:
-        res = ingest_range(db, start, today)
+        n = upsert(db, rows)
         db.commit()
-        flash(f"Money flow updated: {res['so_phien']} sessions "
-              f"({res['tu_ngay']} → {res['den_ngay']}).")
-    except Exception:  # noqa: BLE001 - không để lỗi nạp làm sập trang
+        return jsonify({"ok": True, "n": n})
+    except Exception:  # noqa: BLE001 - không để lỗi ghi làm sập request
         db.rollback()
-        log.exception("market_flows_update lỗi khi nạp dữ liệu")
-        flash("Money flow update failed — check server logs.")
-
-    return redirect(_safe_next(request.form.get("next")) or url_for("main.market_flows"))
+        log.exception("market_flows_ingest lỗi khi ghi dữ liệu")
+        return jsonify({"ok": False, "error": "Server error while saving rows"}), 500
 
 
 # ------------------------- BÁO CÁO -------------------------

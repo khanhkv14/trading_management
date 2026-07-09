@@ -40,12 +40,10 @@
       <a class="btn btn-sm {{ 'btn-primary' if khoi=='prop' else 'btn-outline-primary' }}" data-spa
          href="{{ url_for('main.market_flows', khoi='prop') }}">Proprietary</a>
     </div>
-    <!-- Nút Cập nhật: POST -> nạp dữ liệu tới hôm nay -> reload (không cần internet,
-         chạy được cả trên PythonAnywhere free). -->
-    <form method="post" action="{{ url_for('main.market_flows_update') }}" style="margin:0;">
-      <input type="hidden" name="next" value="{{ url_for('main.market_flows', khoi=khoi) }}">
-      <button type="submit" class="btn btn-sm btn-success">↻ Update data</button>
-    </form>
+    <!-- Nút Update: TRÌNH DUYỆT fetch VNDirect (số thật) -> POST về server upsert
+         -> reload. Chạy cả trên PythonAnywhere free (server không cần ra internet). -->
+    <button type="button" class="btn btn-sm btn-success"
+            data-start="{{ flow_start }}" onclick="MarketFlowUpdate(this)">↻ Update data</button>
   </div>
 </div>
 

@@ -1,2 +1,5 @@
 Flask>=3.0
 python-dotenv>=1.0
+# Chỉ CLI scripts/fetch_market_flows.py cần (server tự gọi VNDirect ở máy có mạng).
+# Nút Update trên web KHÔNG cần requests (trình duyệt fetch, không qua server).
+requests>=2.31

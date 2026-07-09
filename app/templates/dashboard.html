@@ -73,7 +73,13 @@
 <div class="view-header d-flex align-items-center justify-content-between"
      style="border:0;padding:0 2.5rem;margin:1.25rem 0 .5rem;">
   <b>Dòng tiền Khối ngoại · Tuần {{ flow_week }}</b>
-  <a class="text-decoration-none" data-spa href="{{ url_for('main.market_flows') }}">Xem đầy đủ →</a>
+  <div class="d-flex align-items-center gap-3">
+    <form method="post" action="{{ url_for('main.market_flows_update') }}" style="margin:0;">
+      <input type="hidden" name="next" value="{{ url_for('main.dashboard') }}">
+      <button type="submit" class="btn btn-sm btn-success">↻ Cập nhật</button>
+    </form>
+    <a class="text-decoration-none" data-spa href="{{ url_for('main.market_flows') }}">Xem đầy đủ →</a>
+  </div>
 </div>
 
 {% if flow and (flow.top_mua_rong or flow.top_ban_rong) %}

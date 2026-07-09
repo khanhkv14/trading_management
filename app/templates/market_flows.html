@@ -32,12 +32,20 @@
 {% block content %}
 <div class="view-header d-flex align-items-center justify-content-between flex-wrap gap-2">
   <h4 class="mb-0">Dòng tiền Ngoại / Tự doanh</h4>
-  <!-- Đổi khối: điều hướng SPA giữ nguyên bộ máy trang. -->
-  <div class="btn-group" role="group">
-    <a class="btn btn-sm {{ 'btn-primary' if khoi=='foreign' else 'btn-outline-primary' }}" data-spa
-       href="{{ url_for('main.market_flows', khoi='foreign') }}">Khối ngoại</a>
-    <a class="btn btn-sm {{ 'btn-primary' if khoi=='prop' else 'btn-outline-primary' }}" data-spa
-       href="{{ url_for('main.market_flows', khoi='prop') }}">Tự doanh</a>
+  <div class="d-flex align-items-center flex-wrap gap-2">
+    <!-- Đổi khối: điều hướng SPA giữ nguyên bộ máy trang. -->
+    <div class="btn-group" role="group">
+      <a class="btn btn-sm {{ 'btn-primary' if khoi=='foreign' else 'btn-outline-primary' }}" data-spa
+         href="{{ url_for('main.market_flows', khoi='foreign') }}">Khối ngoại</a>
+      <a class="btn btn-sm {{ 'btn-primary' if khoi=='prop' else 'btn-outline-primary' }}" data-spa
+         href="{{ url_for('main.market_flows', khoi='prop') }}">Tự doanh</a>
+    </div>
+    <!-- Nút Cập nhật: POST -> nạp dữ liệu tới hôm nay -> reload (không cần internet,
+         chạy được cả trên PythonAnywhere free). -->
+    <form method="post" action="{{ url_for('main.market_flows_update') }}" style="margin:0;">
+      <input type="hidden" name="next" value="{{ url_for('main.market_flows', khoi=khoi) }}">
+      <button type="submit" class="btn btn-sm btn-success">↻ Cập nhật dữ liệu</button>
+    </form>
   </div>
 </div>
 

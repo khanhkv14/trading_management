@@ -16,6 +16,7 @@ from app.models import get_db
 from app.cache import get_positions, invalidate_positions
 from app.auth import login_required
 from app.market_flows import aggregate, iso_week_of, month_of, InvalidPeriod
+from app.flows_ingest import ingest_range
 
 log = logging.getLogger(__name__)
 
@@ -375,6 +376,44 @@ def market_flows():
         default_week=default_week, default_month=default_month,
         week_data=week_data, month_data=month_data,
     )
+
+
+@main_bp.route("/market-flows/update", methods=["POST"])
+@login_required
+def market_flows_update():
+    """Nút "Cập nhật": nạp dữ liệu mới tới HÔM NAY rồi quay lại trang trước.
+
+    Khoảng nạp: từ ngày MỚI NHẤT đã có trong DB tới hôm nay (nạp lại ngày mới nhất
+    để làm tươi số cuối phiên). DB trống -> lùi về đầu THÁNG TRƯỚC để một cú bấm
+    lấp đủ tháng trước + tháng này (vd bấm trong tháng 7 sẽ có cả tháng 6 & 7).
+
+    Chạy bằng bộ giả lập không cần internet -> hoạt động cả trên PythonAnywhere
+    free. UPSERT theo (ma_cp, ngay) nên bấm nhiều lần vẫn an toàn, không trùng."""
+    db = get_db()
+    today = datetime.now().date()
+    row = db.execute("SELECT MAX(ngay) AS m FROM market_flows").fetchone()
+    last = row["m"] if row else None
+    if last:
+        try:
+            start = datetime.strptime(last[:10], "%Y-%m-%d").date()
+        except ValueError:
+            start = today.replace(day=1)
+    else:
+        # DB trống: lùi về ngày 1 của tháng trước.
+        first_this = today.replace(day=1)
+        start = (first_this - timedelta(days=1)).replace(day=1)
+
+    try:
+        res = ingest_range(db, start, today)
+        db.commit()
+        flash(f"Đã cập nhật dòng tiền: {res['so_phien']} phiên "
+              f"({res['tu_ngay']} → {res['den_ngay']}).")
+    except Exception:  # noqa: BLE001 - không để lỗi nạp làm sập trang
+        db.rollback()
+        log.exception("market_flows_update lỗi khi nạp dữ liệu")
+        flash("Cập nhật dòng tiền thất bại — xem log máy chủ.")
+
+    return redirect(_safe_next(request.form.get("next")) or url_for("main.market_flows"))
 
 
 # ------------------------- BÁO CÁO -------------------------

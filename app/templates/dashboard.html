@@ -72,23 +72,23 @@
 <!-- ===== Dòng tiền Khối ngoại (tuần này) — tóm tắt ngay trên Dashboard ===== -->
 <div class="view-header d-flex align-items-center justify-content-between"
      style="border:0;padding:0 2.5rem;margin:1.25rem 0 .5rem;">
-  <b>Dòng tiền Khối ngoại · Tuần {{ flow_week }}</b>
+  <b>Foreign Money Flow · Week {{ flow_week }}</b>
   <div class="d-flex align-items-center gap-3">
     <form method="post" action="{{ url_for('main.market_flows_update') }}" style="margin:0;">
       <input type="hidden" name="next" value="{{ url_for('main.dashboard') }}">
-      <button type="submit" class="btn btn-sm btn-success">↻ Cập nhật</button>
+      <button type="submit" class="btn btn-sm btn-success">↻ Update</button>
     </form>
-    <a class="text-decoration-none" data-spa href="{{ url_for('main.market_flows') }}">Xem đầy đủ →</a>
+    <a class="text-decoration-none" data-spa href="{{ url_for('main.market_flows') }}">View all →</a>
   </div>
 </div>
 
 {% if flow and (flow.top_mua_rong or flow.top_ban_rong) %}
 <div class="row g-3 mb-3">
   <div class="col-12 col-lg-6">
-    <div class="text-muted small mb-1" style="padding-left:2.5rem;">🟢 Mua ròng nhiều nhất</div>
+    <div class="text-muted small mb-1" style="padding-left:2.5rem;">🟢 Top net buy</div>
     <div class="trade-table card shadow-sm data-card"><div class="card-body"><div class="table-responsive">
       <table class="table table-hover table-striped align-middle w-100">
-        <thead><tr><th>Mã CP</th><th class="text-end">Mua ròng (tỷ)</th><th class="text-end">KL ròng</th></tr></thead>
+        <thead><tr><th>Ticker</th><th class="text-end">Net (bn)</th><th class="text-end">Net vol</th></tr></thead>
         <tbody>
         {% for x in flow.top_mua_rong %}
           <tr><td class="fw-semibold">{{ x.ma_cp }}</td>
@@ -101,10 +101,10 @@
     </div></div></div>
   </div>
   <div class="col-12 col-lg-6">
-    <div class="text-muted small mb-1" style="padding-left:2.5rem;">🔴 Bán ròng nhiều nhất</div>
+    <div class="text-muted small mb-1" style="padding-left:2.5rem;">🔴 Top net sell</div>
     <div class="trade-table card shadow-sm data-card"><div class="card-body"><div class="table-responsive">
       <table class="table table-hover table-striped align-middle w-100">
-        <thead><tr><th>Mã CP</th><th class="text-end">Mua ròng (tỷ)</th><th class="text-end">KL ròng</th></tr></thead>
+        <thead><tr><th>Ticker</th><th class="text-end">Net (bn)</th><th class="text-end">Net vol</th></tr></thead>
         <tbody>
         {% for x in flow.top_ban_rong %}
           <tr><td class="fw-semibold">{{ x.ma_cp }}</td>
@@ -119,7 +119,7 @@
 </div>
 {% else %}
 <div class="card p-3 mb-3 text-muted" style="margin:0 2.5rem;">
-  Chưa có dữ liệu dòng tiền cho tuần này. Nạp bằng lệnh:
+  No money-flow data for this week yet. Click <b>↻ Update</b> above, or run:
   <code>python scripts/fetch_market_flows.py</code>
 </div>
 {% endif %}

@@ -345,7 +345,7 @@ def api_market_trend():
         return jsonify({"ok": False, "error": str(e)}), 400
     except Exception as e:  # noqa: BLE001 - chốt chặn cuối, tránh 500 trần
         log.exception("market-trend lỗi không mong đợi")
-        return jsonify({"ok": False, "error": "Lỗi máy chủ khi thống kê dòng tiền"}), 500
+        return jsonify({"ok": False, "error": "Server error while computing money flow"}), 500
 
 
 @main_bp.route("/market-flows")
@@ -406,12 +406,12 @@ def market_flows_update():
     try:
         res = ingest_range(db, start, today)
         db.commit()
-        flash(f"Đã cập nhật dòng tiền: {res['so_phien']} phiên "
+        flash(f"Money flow updated: {res['so_phien']} sessions "
               f"({res['tu_ngay']} → {res['den_ngay']}).")
     except Exception:  # noqa: BLE001 - không để lỗi nạp làm sập trang
         db.rollback()
         log.exception("market_flows_update lỗi khi nạp dữ liệu")
-        flash("Cập nhật dòng tiền thất bại — xem log máy chủ.")
+        flash("Money flow update failed — check server logs.")
 
     return redirect(_safe_next(request.form.get("next")) or url_for("main.market_flows"))
 

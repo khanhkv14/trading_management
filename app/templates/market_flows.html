@@ -6,10 +6,10 @@
     <div class="table-responsive">
       <table class="table table-hover table-striped align-middle w-100">
         <thead><tr>
-          <th>#</th><th>Mã CP</th>
-          <th class="text-end">Mua ròng (tỷ)</th>
-          <th class="text-end">KL ròng</th>
-          <th class="text-end">Phiên</th>
+          <th>#</th><th>Ticker</th>
+          <th class="text-end">Net (bn)</th>
+          <th class="text-end">Net vol</th>
+          <th class="text-end">Sessions</th>
         </tr></thead>
         <tbody class="mf-body" data-kind="{{ kind }}">
         {% for x in items %}
@@ -21,7 +21,7 @@
             <td class="text-end text-muted">{{ x.so_phien }}</td>
           </tr>
         {% endfor %}
-        {% if not items %}<tr><td colspan="5" class="text-center text-muted py-4">Chưa có dữ liệu</td></tr>{% endif %}
+        {% if not items %}<tr><td colspan="5" class="text-center text-muted py-4">No data</td></tr>{% endif %}
         </tbody>
       </table>
     </div>
@@ -31,20 +31,20 @@
 
 {% block content %}
 <div class="view-header d-flex align-items-center justify-content-between flex-wrap gap-2">
-  <h4 class="mb-0">Dòng tiền Ngoại / Tự doanh</h4>
+  <h4 class="mb-0">Foreign / Proprietary Money Flow</h4>
   <div class="d-flex align-items-center flex-wrap gap-2">
     <!-- Đổi khối: điều hướng SPA giữ nguyên bộ máy trang. -->
     <div class="btn-group" role="group">
       <a class="btn btn-sm {{ 'btn-primary' if khoi=='foreign' else 'btn-outline-primary' }}" data-spa
-         href="{{ url_for('main.market_flows', khoi='foreign') }}">Khối ngoại</a>
+         href="{{ url_for('main.market_flows', khoi='foreign') }}">Foreign</a>
       <a class="btn btn-sm {{ 'btn-primary' if khoi=='prop' else 'btn-outline-primary' }}" data-spa
-         href="{{ url_for('main.market_flows', khoi='prop') }}">Tự doanh</a>
+         href="{{ url_for('main.market_flows', khoi='prop') }}">Proprietary</a>
     </div>
     <!-- Nút Cập nhật: POST -> nạp dữ liệu tới hôm nay -> reload (không cần internet,
          chạy được cả trên PythonAnywhere free). -->
     <form method="post" action="{{ url_for('main.market_flows_update') }}" style="margin:0;">
       <input type="hidden" name="next" value="{{ url_for('main.market_flows', khoi=khoi) }}">
-      <button type="submit" class="btn btn-sm btn-success">↻ Cập nhật dữ liệu</button>
+      <button type="submit" class="btn btn-sm btn-success">↻ Update data</button>
     </form>
   </div>
 </div>
@@ -55,34 +55,34 @@
 
   <!-- ================= TUẦN ================= -->
   <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mt-3 mb-2">
-    <b>Theo tuần (ISO)</b>
+    <b>By week (ISO)</b>
     <input type="week" id="mf-week" class="form-control form-control-sm" style="max-width:12rem"
            value="{{ default_week }}">
   </div>
   <div class="row g-3">
     <div class="col-12 col-lg-6">
-      <div class="text-muted small mb-1">🟢 Mua ròng nhiều nhất</div>
+      <div class="text-muted small mb-1">🟢 Top net buy</div>
       {{ rank_table(week_data.top_mua_rong if week_data else [], 'week-buy') }}
     </div>
     <div class="col-12 col-lg-6">
-      <div class="text-muted small mb-1">🔴 Bán ròng nhiều nhất</div>
+      <div class="text-muted small mb-1">🔴 Top net sell</div>
       {{ rank_table(week_data.top_ban_rong if week_data else [], 'week-sell') }}
     </div>
   </div>
 
   <!-- ================= THÁNG ================= -->
   <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mt-4 mb-2">
-    <b>Theo tháng</b>
+    <b>By month</b>
     <input type="month" id="mf-month" class="form-control form-control-sm" style="max-width:12rem"
            value="{{ default_month }}">
   </div>
   <div class="row g-3 mb-3">
     <div class="col-12 col-lg-6">
-      <div class="text-muted small mb-1">🟢 Mua ròng nhiều nhất</div>
+      <div class="text-muted small mb-1">🟢 Top net buy</div>
       {{ rank_table(month_data.top_mua_rong if month_data else [], 'month-buy') }}
     </div>
     <div class="col-12 col-lg-6">
-      <div class="text-muted small mb-1">🔴 Bán ròng nhiều nhất</div>
+      <div class="text-muted small mb-1">🔴 Top net sell</div>
       {{ rank_table(month_data.top_ban_rong if month_data else [], 'month-sell') }}
     </div>
   </div>
@@ -112,7 +112,7 @@
 
   function rowsHTML(items) {
     if (!items || !items.length)
-      return '<tr><td colspan="5" class="text-center text-muted py-4">Chưa có dữ liệu</td></tr>';
+      return '<tr><td colspan="5" class="text-center text-muted py-4">No data</td></tr>';
     return items.map(function (x, i) {
       var cls = x.net_gt >= 0 ? 'win' : 'loss';
       return '<tr><td class="text-muted">' + (i + 1) + '</td>' +

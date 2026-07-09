@@ -59,14 +59,14 @@ def week_range(value):
     KHÔNG dùng %Y/%W vì đó là tuần bắt đầu từ Chủ Nhật/khác chuẩn ISO."""
     m = _WEEK_RE.match((value or "").strip())
     if not m:
-        raise InvalidPeriod(f"Tuần không hợp lệ: {value!r} (đúng dạng '2026-W28')")
+        raise InvalidPeriod(f"Invalid week: {value!r} (expected '2026-W28')")
     year, week = int(m.group(1)), int(m.group(2))
     if not 1 <= week <= 53:
-        raise InvalidPeriod(f"Số tuần ngoài phạm vi 1..53: {value!r}")
+        raise InvalidPeriod(f"Week number out of range 1..53: {value!r}")
     try:
         monday = datetime.strptime(f"{year:04d}-W{week:02d}-1", "%G-W%V-%u").date()
     except ValueError as e:
-        raise InvalidPeriod(f"Tuần không tồn tại: {value!r}") from e
+        raise InvalidPeriod(f"Week does not exist: {value!r}") from e
     sunday = monday + timedelta(days=6)
     return monday.isoformat(), sunday.isoformat()
 
@@ -75,10 +75,10 @@ def month_range(value):
     """'YYYY-MM' -> (ngày đầu tháng, ngày cuối tháng) dạng 'YYYY-MM-DD'."""
     m = _MONTH_RE.match((value or "").strip())
     if not m:
-        raise InvalidPeriod(f"Tháng không hợp lệ: {value!r} (đúng dạng '2026-07')")
+        raise InvalidPeriod(f"Invalid month: {value!r} (expected '2026-07')")
     year, month = int(m.group(1)), int(m.group(2))
     if not 1 <= month <= 12:
-        raise InvalidPeriod(f"Tháng ngoài phạm vi 1..12: {value!r}")
+        raise InvalidPeriod(f"Month out of range 1..12: {value!r}")
     last = calendar.monthrange(year, month)[1]
     return f"{year:04d}-{month:02d}-01", f"{year:04d}-{month:02d}-{last:02d}"
 
@@ -89,7 +89,7 @@ def period_range(period_type, value):
         return week_range(value)
     if period_type == "monthly":
         return month_range(value)
-    raise InvalidPeriod(f"type không hợp lệ: {period_type!r} (dùng 'weekly'/'monthly')")
+    raise InvalidPeriod(f"Invalid type: {period_type!r} (use 'weekly'/'monthly')")
 
 
 def aggregate(db, period_type, value, khoi="foreign", limit=20):
@@ -106,7 +106,7 @@ def aggregate(db, period_type, value, khoi="foreign", limit=20):
     cắt tiện dụng top_mua_rong / top_ban_rong.
     """
     if khoi not in KHOI_PREFIX:
-        raise InvalidPeriod(f"khoi không hợp lệ: {khoi!r} (dùng 'foreign'/'prop')")
+        raise InvalidPeriod(f"Invalid khoi: {khoi!r} (use 'foreign'/'prop')")
     pfx = KHOI_PREFIX[khoi]
     start, end = period_range(period_type, value)
 

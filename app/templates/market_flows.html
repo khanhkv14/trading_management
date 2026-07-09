@@ -1,0 +1,153 @@
+{% extends layout|default("base.html") %}
+
+{% macro rank_table(items, kind) %}
+<div class="trade-table card shadow-sm data-card">
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-hover table-striped align-middle w-100">
+        <thead><tr>
+          <th>#</th><th>Mã CP</th>
+          <th class="text-end">Mua ròng (tỷ)</th>
+          <th class="text-end">KL ròng</th>
+          <th class="text-end">Phiên</th>
+        </tr></thead>
+        <tbody class="mf-body" data-kind="{{ kind }}">
+        {% for x in items %}
+          <tr>
+            <td class="text-muted">{{ loop.index }}</td>
+            <td class="fw-semibold">{{ x.ma_cp }}</td>
+            <td class="text-end {{ 'win' if x.net_gt >= 0 else 'loss' }}">{{ (x.net_gt/1000000000)|fmt(2) }}</td>
+            <td class="text-end">{{ x.net_kl|fmt }}</td>
+            <td class="text-end text-muted">{{ x.so_phien }}</td>
+          </tr>
+        {% endfor %}
+        {% if not items %}<tr><td colspan="5" class="text-center text-muted py-4">Chưa có dữ liệu</td></tr>{% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endmacro %}
+
+{% block content %}
+<div class="view-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+  <h4 class="mb-0">Dòng tiền Ngoại / Tự doanh</h4>
+  <!-- Đổi khối: điều hướng SPA giữ nguyên bộ máy trang. -->
+  <div class="btn-group" role="group">
+    <a class="btn btn-sm {{ 'btn-primary' if khoi=='foreign' else 'btn-outline-primary' }}" data-spa
+       href="{{ url_for('main.market_flows', khoi='foreign') }}">Khối ngoại</a>
+    <a class="btn btn-sm {{ 'btn-primary' if khoi=='prop' else 'btn-outline-primary' }}" data-spa
+       href="{{ url_for('main.market_flows', khoi='prop') }}">Tự doanh</a>
+  </div>
+</div>
+
+<!-- Cấu hình cho JS (khối + kỳ mặc định) nhúng ở data- để sống sót qua SPA. -->
+<div id="mf-root" data-khoi="{{ khoi }}"
+     data-week="{{ default_week }}" data-month="{{ default_month }}">
+
+  <!-- ================= TUẦN ================= -->
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mt-3 mb-2">
+    <b>Theo tuần (ISO)</b>
+    <input type="week" id="mf-week" class="form-control form-control-sm" style="max-width:12rem"
+           value="{{ default_week }}">
+  </div>
+  <div class="row g-3">
+    <div class="col-12 col-lg-6">
+      <div class="text-muted small mb-1">🟢 Mua ròng nhiều nhất</div>
+      {{ rank_table(week_data.top_mua_rong if week_data else [], 'week-buy') }}
+    </div>
+    <div class="col-12 col-lg-6">
+      <div class="text-muted small mb-1">🔴 Bán ròng nhiều nhất</div>
+      {{ rank_table(week_data.top_ban_rong if week_data else [], 'week-sell') }}
+    </div>
+  </div>
+
+  <!-- ================= THÁNG ================= -->
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mt-4 mb-2">
+    <b>Theo tháng</b>
+    <input type="month" id="mf-month" class="form-control form-control-sm" style="max-width:12rem"
+           value="{{ default_month }}">
+  </div>
+  <div class="row g-3 mb-3">
+    <div class="col-12 col-lg-6">
+      <div class="text-muted small mb-1">🟢 Mua ròng nhiều nhất</div>
+      {{ rank_table(month_data.top_mua_rong if month_data else [], 'month-buy') }}
+    </div>
+    <div class="col-12 col-lg-6">
+      <div class="text-muted small mb-1">🔴 Bán ròng nhiều nhất</div>
+      {{ rank_table(month_data.top_ban_rong if month_data else [], 'month-sell') }}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* Đổi tuần/tháng -> gọi /api/market-trend rồi vẽ lại bảng, KHÔNG reload trang.
+   Server đã render sẵn kỳ hiện tại (chạy tốt cả khi tắt JS / trên PA free);
+   phần dưới chỉ nâng cấp trải nghiệm khi người dùng chọn kỳ khác. */
+(function () {
+  var root = document.getElementById('mf-root');
+  if (!root) return;
+  var khoi = root.getAttribute('data-khoi') || 'foreign';
+
+  // Định dạng số kiểu VN: nghìn '.', thập phân ','. (đồng bộ filter |fmt của app)
+  function fmtVN(n, dec) {
+    if (n === null || n === undefined || isNaN(n)) return '—';
+    var f = Number(n), neg = f < 0; f = Math.abs(f);
+    var body = dec ? f.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec })
+                   : Math.round(f).toLocaleString('en-US');
+    body = body.replace(/,/g, ' ').replace(/\./g, ',').replace(/ /g, '.');
+    return (neg ? '-' : '') + body;
+  }
+  function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
+
+  function rowsHTML(items) {
+    if (!items || !items.length)
+      return '<tr><td colspan="5" class="text-center text-muted py-4">Chưa có dữ liệu</td></tr>';
+    return items.map(function (x, i) {
+      var cls = x.net_gt >= 0 ? 'win' : 'loss';
+      return '<tr><td class="text-muted">' + (i + 1) + '</td>' +
+        '<td class="fw-semibold">' + esc(x.ma_cp) + '</td>' +
+        '<td class="text-end ' + cls + '">' + fmtVN(x.net_gt / 1e9, 2) + '</td>' +
+        '<td class="text-end">' + fmtVN(x.net_kl, 0) + '</td>' +
+        '<td class="text-end text-muted">' + esc(x.so_phien) + '</td></tr>';
+    }).join('');
+  }
+
+  function fill(kind, items) {
+    var body = root.querySelector('.mf-body[data-kind="' + kind + '"]');
+    if (body) body.innerHTML = rowsHTML(items);
+  }
+
+  // Gọi API cho 1 kỳ; cập nhật 2 bảng (buy/sell) của kỳ đó. signal để hủy khi rời trang.
+  function load(type, value, buyKind, sellKind, signal) {
+    var url = '/api/market-trend?type=' + type + '&value=' + encodeURIComponent(value) +
+      '&khoi=' + encodeURIComponent(khoi) + '&limit=10';
+    fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' }, signal: signal })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (!d || !d.ok) return;
+        fill(buyKind, d.top_mua_rong);
+        fill(sellKind, d.top_ban_rong);
+      })
+      .catch(function () {});
+  }
+
+  var ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+  var sig = ctrl ? ctrl.signal : undefined;
+  if (window.SPA && window.SPA.onCleanup && ctrl) {
+    window.SPA.onCleanup(function () { try { ctrl.abort(); } catch (e) {} });
+  }
+
+  var weekEl = document.getElementById('mf-week');
+  var monthEl = document.getElementById('mf-month');
+  if (weekEl) weekEl.addEventListener('change', function () {
+    if (weekEl.value) load('weekly', weekEl.value, 'week-buy', 'week-sell', sig);
+  });
+  if (monthEl) monthEl.addEventListener('change', function () {
+    if (monthEl.value) load('monthly', monthEl.value, 'month-buy', 'month-sell', sig);
+  });
+})();
+</script>
+{% endblock %}

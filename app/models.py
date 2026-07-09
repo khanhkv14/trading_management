@@ -27,6 +27,19 @@ TRANSACTION_COLUMNS = [
     ("so_luong", "REAL"), ("gia", "REAL"),
     ("chien_luoc", "TEXT"), ("ghi_chu", "TEXT"),
 ]
+# Dòng tiền GIAO DỊCH HÀNG NGÀY của Khối ngoại (kn_) và Tự doanh (td_) theo từng
+# mã cổ phiếu. Đây là dữ liệu THÔ 1 dòng/mã/ngày; các con số mua ròng theo tuần/
+# tháng được TÍNH ĐỘNG khi truy vấn (app/market_flows.py), không lưu phái sinh.
+#   kl = khối lượng (cổ phiếu) · gt = giá trị (VND)
+#   kn = khối ngoại · td = tự doanh
+# Chống trùng: UNIQUE(ma_cp, ngay) + upsert (xem scripts/fetch_market_flows.py).
+MARKET_FLOW_COLUMNS = [
+    ("ngay", "TEXT"), ("ma_cp", "TEXT"), ("san", "TEXT"),
+    ("kn_mua_kl", "REAL"), ("kn_mua_gt", "REAL"),
+    ("kn_ban_kl", "REAL"), ("kn_ban_gt", "REAL"),
+    ("td_mua_kl", "REAL"), ("td_mua_gt", "REAL"),
+    ("td_ban_kl", "REAL"), ("td_ban_gt", "REAL"),
+]
 
 
 def _connect(db_path):
@@ -56,6 +69,7 @@ def init_db(db_path=None):
     trade_cols = ", ".join(f"{n} {t}" for n, t in TRADE_COLUMNS)
     signal_cols = ", ".join(f"{n} {t}" for n, t in SIGNAL_COLUMNS)
     tx_cols = ", ".join(f"{n} {t}" for n, t in TRANSACTION_COLUMNS)
+    mf_cols = ", ".join(f"{n} {t}" for n, t in MARKET_FLOW_COLUMNS)
     con.executescript(f"""
         CREATE TABLE IF NOT EXISTS transactions (
             id INTEGER PRIMARY KEY AUTOINCREMENT, {tx_cols}
@@ -66,6 +80,16 @@ def init_db(db_path=None):
         CREATE TABLE IF NOT EXISTS signals (
             id INTEGER PRIMARY KEY AUTOINCREMENT, {signal_cols}
         );
+        CREATE TABLE IF NOT EXISTS market_flows (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, {mf_cols}
+        );
+        -- UNIQUE(ma_cp, ngay) là "chốt" để upsert (ON CONFLICT) chống trùng dữ
+        -- liệu khi chạy lại script nạp cùng một ngày nhiều lần.
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_market_flows_ma_ngay
+            ON market_flows(ma_cp, ngay);
+        -- Truy vấn thống kê luôn lọc theo khoảng NGÀY -> index cho nhanh.
+        CREATE INDEX IF NOT EXISTS idx_market_flows_ngay
+            ON market_flows(ngay);
         CREATE TABLE IF NOT EXISTS settings (
             key TEXT PRIMARY KEY, value TEXT
         );
@@ -97,7 +121,8 @@ def migrate(db_path):
     init_db(db_path)
     con = _connect(db_path)
     for table, cols in (("transactions", TRANSACTION_COLUMNS),
-                        ("trades", TRADE_COLUMNS), ("signals", SIGNAL_COLUMNS)):
+                        ("trades", TRADE_COLUMNS), ("signals", SIGNAL_COLUMNS),
+                        ("market_flows", MARKET_FLOW_COLUMNS)):
         existing = {r["name"] for r in con.execute(f"PRAGMA table_info({table})")}
         for name, ctype in cols:
             if name not in existing:

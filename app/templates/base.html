@@ -13,6 +13,7 @@
 {% set is_dash = ep == 'main.dashboard' %}
 {% set is_tx   = ep in ['main.transactions','main.tx_add','main.tx_edit'] %}
 {% set is_pos  = ep in ['main.positions','main.position_detail'] %}
+{% set is_flow = ep == 'main.market_flows' %}
 {% set is_rep  = ep == 'main.report' %}
 <body class="{{ 'is-app' if session.logged_in }}">
 
@@ -24,6 +25,7 @@
     <a class="side-link {{ 'active' if is_dash }}" data-spa href="{{ url_for('main.dashboard') }}"><span class="ico">📊</span> Dashboard</a>
     <a class="side-link {{ 'active' if is_tx }}"   data-spa href="{{ url_for('main.transactions') }}"><span class="ico">📋</span> Transactions</a>
     <a class="side-link {{ 'active' if is_pos }}"  data-spa href="{{ url_for('main.positions') }}"><span class="ico">📦</span> Positions</a>
+    <a class="side-link {{ 'active' if is_flow }}" data-spa href="{{ url_for('main.market_flows') }}"><span class="ico">💰</span> Dòng tiền</a>
     <a class="side-link {{ 'active' if is_rep }}"  data-spa href="{{ url_for('main.report') }}"><span class="ico">📈</span> Analytics</a>
   </nav>
 </aside>

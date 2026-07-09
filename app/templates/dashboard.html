@@ -68,6 +68,55 @@
     {% if not open_rows %}<div class="text-center text-muted py-4">No open positions</div>{% endif %}
   </div>
 </div>
+
+<!-- ===== Dòng tiền Khối ngoại (tuần này) — tóm tắt ngay trên Dashboard ===== -->
+<div class="view-header d-flex align-items-center justify-content-between"
+     style="border:0;padding:0 2.5rem;margin:1.25rem 0 .5rem;">
+  <b>Dòng tiền Khối ngoại · Tuần {{ flow_week }}</b>
+  <a class="text-decoration-none" data-spa href="{{ url_for('main.market_flows') }}">Xem đầy đủ →</a>
+</div>
+
+{% if flow and (flow.top_mua_rong or flow.top_ban_rong) %}
+<div class="row g-3 mb-3">
+  <div class="col-12 col-lg-6">
+    <div class="text-muted small mb-1" style="padding-left:2.5rem;">🟢 Mua ròng nhiều nhất</div>
+    <div class="trade-table card shadow-sm data-card"><div class="card-body"><div class="table-responsive">
+      <table class="table table-hover table-striped align-middle w-100">
+        <thead><tr><th>Mã CP</th><th class="text-end">Mua ròng (tỷ)</th><th class="text-end">KL ròng</th></tr></thead>
+        <tbody>
+        {% for x in flow.top_mua_rong %}
+          <tr><td class="fw-semibold">{{ x.ma_cp }}</td>
+              <td class="text-end win">{{ (x.net_gt/1000000000)|fmt(2) }}</td>
+              <td class="text-end">{{ x.net_kl|fmt }}</td></tr>
+        {% endfor %}
+        {% if not flow.top_mua_rong %}<tr><td colspan="3" class="text-center text-muted py-3">—</td></tr>{% endif %}
+        </tbody>
+      </table>
+    </div></div></div>
+  </div>
+  <div class="col-12 col-lg-6">
+    <div class="text-muted small mb-1" style="padding-left:2.5rem;">🔴 Bán ròng nhiều nhất</div>
+    <div class="trade-table card shadow-sm data-card"><div class="card-body"><div class="table-responsive">
+      <table class="table table-hover table-striped align-middle w-100">
+        <thead><tr><th>Mã CP</th><th class="text-end">Mua ròng (tỷ)</th><th class="text-end">KL ròng</th></tr></thead>
+        <tbody>
+        {% for x in flow.top_ban_rong %}
+          <tr><td class="fw-semibold">{{ x.ma_cp }}</td>
+              <td class="text-end loss">{{ (x.net_gt/1000000000)|fmt(2) }}</td>
+              <td class="text-end">{{ x.net_kl|fmt }}</td></tr>
+        {% endfor %}
+        {% if not flow.top_ban_rong %}<tr><td colspan="3" class="text-center text-muted py-3">—</td></tr>{% endif %}
+        </tbody>
+      </table>
+    </div></div></div>
+  </div>
+</div>
+{% else %}
+<div class="card p-3 mb-3 text-muted" style="margin:0 2.5rem;">
+  Chưa có dữ liệu dòng tiền cho tuần này. Nạp bằng lệnh:
+  <code>python scripts/fetch_market_flows.py</code>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}

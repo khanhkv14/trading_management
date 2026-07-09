@@ -6,14 +6,18 @@ Mô hình: bảng `transactions` là dữ liệu GỐC (mỗi lệnh khớp = 1 
 """
 import csv
 import io
+import logging
 from datetime import datetime, timedelta
 from flask import (
     Blueprint, request, redirect, url_for, flash, render_template, abort,
-    Response
+    Response, jsonify
 )
 from app.models import get_db
 from app.cache import get_positions, invalidate_positions
 from app.auth import login_required
+from app.market_flows import aggregate, iso_week_of, month_of, InvalidPeriod
+
+log = logging.getLogger(__name__)
 
 main_bp = Blueprint("main", __name__)
 
@@ -275,10 +279,101 @@ def dashboard():
     } for p in open_pos]
     open_rows.sort(key=lambda r: r["ma_cp"])
 
+    # Dòng tiền Khối ngoại TUẦN NÀY: hiện tóm tắt top mua/bán ròng ngay trên
+    # Dashboard (bảng đầy đủ tuần/tháng + tự doanh ở trang /market-flows). Lỗi
+    # (chưa nạp dữ liệu) -> để None, template hiển thị thông báo hướng dẫn.
+    today = datetime.now()
+    flow_week = iso_week_of(today)
+    try:
+        flow = aggregate(get_db(), "weekly", flow_week, khoi="foreign", limit=5)
+    except InvalidPeriod:
+        log.exception("dashboard: không dựng được dòng tiền tuần %s", flow_week)
+        flow = None
+
     return render_template(
         "dashboard.html",
         total=total, win_rate=win_rate, total_pnl=total_pnl,
         open_count=len(open_pos), open_rows=open_rows,
+        flow=flow, flow_week=flow_week,
+    )
+
+
+# ------------------------- DÒNG TIỀN KHỐI NGOẠI / TỰ DOANH -------------------------
+def _clamp_limit(raw, default=20, lo=1, hi=100):
+    """Ép `limit` về số nguyên trong [lo, hi]; giá trị lỗi -> default."""
+    try:
+        n = int(raw)
+    except (TypeError, ValueError):
+        return default
+    return max(lo, min(hi, n))
+
+
+@main_bp.route("/api/market-trend")
+@login_required
+def api_market_trend():
+    """API JSON: top mua/bán ròng của một khối trong tuần/tháng chỉ định.
+
+    Ví dụ:
+        GET /api/market-trend?type=weekly&value=2026-W28
+        GET /api/market-trend?type=monthly&value=2026-07&khoi=prop&limit=10
+
+    Tham số:
+        type  : 'weekly' | 'monthly'                (bắt buộc)
+        value : '2026-W28' | '2026-07'              (mặc định: tuần/tháng hiện tại)
+        khoi  : 'foreign' (khối ngoại) | 'prop'     (mặc định 'foreign')
+        limit : số mã mỗi chiều top mua/bán          (1..100, mặc định 20)
+
+    Kết quả `ranked` được sắp GIẢM DẦN theo giá trị mua ròng.
+    """
+    period_type = (request.args.get("type") or "weekly").strip().lower()
+    khoi = (request.args.get("khoi") or "foreign").strip().lower()
+    limit = _clamp_limit(request.args.get("limit"))
+
+    # Không truyền value -> mặc định kỳ HIỆN TẠI cho tiện gọi nhanh.
+    value = (request.args.get("value") or "").strip()
+    if not value:
+        today = datetime.now()
+        value = iso_week_of(today) if period_type == "weekly" else month_of(today)
+
+    try:
+        data = aggregate(get_db(), period_type, value, khoi=khoi, limit=limit)
+        return jsonify({"ok": True, **data})
+    except InvalidPeriod as e:
+        # Lỗi do người gọi (tham số sai) -> 400, kèm thông điệp rõ ràng.
+        log.warning("market-trend tham số sai: %s", e)
+        return jsonify({"ok": False, "error": str(e)}), 400
+    except Exception as e:  # noqa: BLE001 - chốt chặn cuối, tránh 500 trần
+        log.exception("market-trend lỗi không mong đợi")
+        return jsonify({"ok": False, "error": "Lỗi máy chủ khi thống kê dòng tiền"}), 500
+
+
+@main_bp.route("/market-flows")
+@login_required
+def market_flows():
+    """Trang dashboard dòng tiền: bảng top mua/bán ròng tuần & tháng hiện tại.
+
+    Server render sẵn kỳ hiện tại (đọc SQLite local -> chạy được cả trên
+    PythonAnywhere free); người dùng đổi tuần/tháng thì JS gọi /api/market-trend.
+    """
+    today = datetime.now()
+    default_week = iso_week_of(today)
+    default_month = month_of(today)
+    khoi = (request.args.get("khoi") or "foreign").strip().lower()
+    if khoi not in ("foreign", "prop"):
+        khoi = "foreign"
+
+    db = get_db()
+    week_data = month_data = None
+    try:
+        week_data = aggregate(db, "weekly", default_week, khoi=khoi, limit=10)
+        month_data = aggregate(db, "monthly", default_month, khoi=khoi, limit=10)
+    except InvalidPeriod:
+        log.exception("market_flows: không dựng được kỳ mặc định")
+
+    return render_template(
+        "market_flows.html", khoi=khoi,
+        default_week=default_week, default_month=default_month,
+        week_data=week_data, month_data=month_data,
     )
 
 
